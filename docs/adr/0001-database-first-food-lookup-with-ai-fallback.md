@@ -1,0 +1,3 @@
+# Food Entries are resolved database-first, with AI as a fallback
+
+A Food Entry's nutrient values are resolved by Food Lookup (USDA FoodData Central, then Open Food Facts) first; an AI Estimate is only generated when both return no match. We considered resolving every Food Entry via AI Estimate directly, since it's the lower-friction entry path, but research into LLM-estimated calories/macros from free-text descriptions found ~35–38% average error against structured food databases. Given accuracy directly affects whether Nutrient Target comparisons and Day Summaries are trustworthy, database accuracy was chosen over AI convenience as the default path.
