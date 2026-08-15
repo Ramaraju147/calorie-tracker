@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Progress over time</title>
+<!--
+  LOCKED. Wayfinder issue #13 (child of map #1), resolved: "Chart
+  first" — a verdict-colored bar chart (calories vs. target) is the
+  hero, a duration selector (W/M/3M/6M/All) above it, a 3-tile Best
+  day / Worst day / Longest streak row, macro-adherence progress
+  bars, and a nutrient-adherence bar list for micronutrients/watched
+  nutrients — chosen over two alternates (Checklist first: a 7-day
+  checkbox row re-skinning a user-supplied screenshot reference's
+  "Day Calories Challenge"; Rings + accordion: three composite
+  progress rings with detail sunk into Day Summary's accordion
+  pattern). See issue #13 for the full comparison; the three-variant
+  exploration lives on branch prototype/progress-over-time-variants.
+
+  Distinct from Weight Trend (issue #12): this screen trends Calorie
+  Target / macro / micronutrient ADHERENCE over multiple days, not
+  body weight. The Month/3M/6M/All ranges are visual-only for now —
+  exact per-range data aggregation (weekly vs. monthly bars) is an
+  open follow-up, not decided here (see map #1's Not yet specified).
+  The nutrient-adherence section always reflects the last 7 days,
+  independent of the selected range.
+
+  Visual identity (color, type, tab bar, light theme) is locked from
+  issue #9. The Tailwind config + gradient/CSS-token block below is
+  copied verbatim from prototype/logging-flow-home/index.html (issue
+  #10) per map #1's Notes — do not re-derive.
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#F3F1EA',
+          surface: '#FFFFFF',
+          ink: '#1B1A17',
+          muted: '#79746C',
+          line: '#E9E4D8',
+          brand: '#7FA636',
+          cal: '#E15A2B',
+          protein: '#8B5FBF',
+          carbs: '#C98A16',
+          fat: '#2E9E78',
+          water: '#2E86AB',
+        },
+        fontFamily: {
+          display: ['"Plus Jakarta Sans"', 'sans-serif'],
+          body: ['"Inter"', 'sans-serif'],
+        },
+        borderRadius: {
+          '2xl': '1.1rem',
+          '3xl': '1.75rem',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .shadow-soft { box-shadow: 0 1px 2px rgba(27,26,23,0.03), 0 6px 16px -10px rgba(27,26,23,0.08); }
+  .shadow-soft-lg { box-shadow: 0 1px 3px rgba(27,26,23,0.04), 0 16px 32px -16px rgba(27,26,23,0.14); }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(180deg); }
+  .phone { height: 812px; }
+
+  /* whole-canvas backdrop — one quiet warm wash, not a rainbow mesh. Apple's restraint: */
+  /* the color lives in the data, the backdrop just sets a calm stage.                  */
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255,178,120,0.22) 0%, transparent 55%),
+      radial-gradient(circle at 85% 100%, rgba(126,190,150,0.16) 0%, transparent 55%),
+      linear-gradient(165deg, #F8F4EA 0%, #EEE7D6 100%);
+    background-attachment: fixed;
+  }
+
+  /* full-bleed gradient banner behind each screen's header + hero — replaces the blob glow */
+  .hero-wash { background: linear-gradient(165deg, #FFE4C2 0%, #FCF0E0 45%, #FFFFFF 80%); }
+
+  /* gradient fills — vivid, used only where an accent belongs (bars, badges) */
+  .grad-cal     { background: linear-gradient(135deg, #FF7A3D 0%, #DE3F0F 100%); }
+  .grad-protein { background: linear-gradient(135deg, #B283F0 0%, #7331C4 100%); }
+  .grad-carbs   { background: linear-gradient(135deg, #F5B62E 0%, #C67200 100%); }
+  .grad-fat     { background: linear-gradient(135deg, #35DBA0 0%, #0A8B5E 100%); }
+  .grad-water   { background: linear-gradient(135deg, #35B6F0 0%, #0968A0 100%); }
+  .grad-brand   { background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%); }
+  .grad-ink     { background: linear-gradient(160deg, #322F27 0%, #121108 100%); }
+
+  /* subtle sheen for standalone cards/buttons — not used on list rows (see entry-row) */
+  .sheen { background: linear-gradient(165deg, #FFFFFF 0%, #F5F1E6 100%); }
+
+  /* goal / target reference line — from Weight Trend, issue #12 */
+  .goal-line { stroke: #A29C8C; stroke-width: 1.5; stroke-dasharray: 3 4; }
+
+  /* progress-over-time-only addition — verdict-colored chart bars */
+  .verdict-met   { fill: #7FA636; }
+  .verdict-watch { fill: #C98A16; }
+  .verdict-miss  { fill: #E15A2B; }
+</style>
+</head>
+<body class="text-ink">
+
+  <div class="min-h-screen flex items-start justify-center py-10 px-4">
+    <div class="w-full max-w-[390px]">
+
+      <!-- ============================================================ -->
+      <!-- LOCKED: "Chart first" — bar chart hero, 3-tile stat row,      -->
+      <!-- macro-adherence bars, nutrient-adherence bars                 -->
+      <!-- ============================================================ -->
+      <section id="progress-over-time-screen" class="phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 overflow-y-auto no-scrollbar">
+
+          <div class="hero-wash">
+            <div class="px-6 pt-8 pb-2 flex items-center justify-between">
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="text-center">
+                <p class="text-[11px] text-ink/55 font-semibold uppercase tracking-wide">Progress</p>
+                <p class="font-display font-bold text-base mt-0.5">This week</p>
+              </div>
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M8 3v3.5M16 3v3.5"/></svg></button>
+            </div>
+
+            <div class="px-6 pt-6 pb-4">
+              <p class="text-sm text-ink/60 font-medium mb-1">Days on target</p>
+              <div class="flex items-end gap-2">
+                <p class="font-display font-extrabold text-[64px] leading-none tracking-tight">4</p>
+                <span class="text-lg font-semibold text-ink/50 mb-2">/ 7 days</span>
+              </div>
+              <p class="text-sm text-muted mt-2">Aug 10 – Aug 16</p>
+            </div>
+          </div>
+
+          <div class="px-6">
+            <div class="rounded-2xl border border-line sheen shadow-soft p-4">
+              <div class="flex items-center gap-1 mb-3">
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-ink text-white transition-colors active" data-range="w">W</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="m">M</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="3m">3M</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="6m">6M</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="all">All</button>
+              </div>
+              <div class="flex items-center justify-between mb-3">
+                <p class="text-xs font-semibold text-muted">Calories vs. target</p>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[11px] font-semibold text-muted">Target · 2,000</span>
+                </div>
+              </div>
+              <svg viewBox="0 0 328 130" class="w-full h-auto overflow-visible">
+                <line class="goal-line" x1="0" y1="60" x2="328" y2="60"/>
+                <rect class="verdict-met"  x="19"  y="72" width="26" height="38" rx="4"/>
+                <rect class="verdict-miss" x="63"  y="26" width="26" height="84" rx="4"/>
+                <rect class="verdict-met"  x="107" y="65" width="26" height="45" rx="4"/>
+                <rect class="verdict-watch" x="151" y="89" width="26" height="21" rx="4"/>
+                <rect class="verdict-met"  x="195" y="58" width="26" height="52" rx="4"/>
+                <rect class="verdict-miss" x="239" y="32" width="26" height="78" rx="4"/>
+                <rect class="verdict-met"  x="283" y="71" width="26" height="39" rx="4"/>
+              </svg>
+              <div class="flex justify-between mt-1 px-0.5">
+                <span class="text-[10px] text-muted font-medium">Mon</span>
+                <span class="text-[10px] text-muted font-medium">Tue</span>
+                <span class="text-[10px] text-muted font-medium">Wed</span>
+                <span class="text-[10px] text-muted font-medium">Thu</span>
+                <span class="text-[10px] text-muted font-medium">Fri</span>
+                <span class="text-[10px] text-muted font-medium">Sat</span>
+                <span class="text-[10px] text-ink font-semibold">Sun</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-5">
+            <div class="grid grid-cols-3 gap-2.5">
+              <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Best day</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1">Mon</p>
+                <p class="text-[10px] font-semibold text-brand mt-0.5">1,880 kcal</p>
+              </div>
+              <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Worst day</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1">Sat</p>
+                <p class="text-[10px] font-semibold text-[#E15A2B] mt-0.5">2,280 kcal</p>
+              </div>
+              <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Longest streak</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1">1 <span class="text-[11px] font-semibold text-muted">day</span></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-5">
+            <div class="rounded-2xl border border-line bg-surface p-4">
+              <p class="font-display font-bold text-sm mb-3">Macro adherence</p>
+              <div class="space-y-3">
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Protein</span><span class="text-[11px] font-bold">92%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-protein rounded-full" style="width:92%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Carbs</span><span class="text-[11px] font-bold">88%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-carbs rounded-full" style="width:88%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Fat</span><span class="text-[11px] font-bold">95%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-fat rounded-full" style="width:95%"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-5 pb-8">
+            <div class="rounded-2xl border border-line bg-surface p-4">
+              <p class="font-display font-bold text-sm mb-3">Nutrient adherence</p>
+              <div class="space-y-3">
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Vit D</span><span class="text-[11px] font-bold">68%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-cal rounded-full" style="width:68%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Calcium</span><span class="text-[11px] font-bold">88%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-carbs rounded-full" style="width:88%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Iron</span><span class="text-[11px] font-bold">75%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-carbs rounded-full" style="width:75%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Potassium</span><span class="text-[11px] font-bold">58%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-cal rounded-full" style="width:58%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">B12</span><span class="text-[11px] font-bold">125%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-brand rounded-full" style="width:100%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Vit C</span><span class="text-[11px] font-bold">145%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-brand rounded-full" style="width:100%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Magnesium</span><span class="text-[11px] font-bold">66%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-cal rounded-full" style="width:66%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Zinc</span><span class="text-[11px] font-bold">92%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-brand rounded-full" style="width:92%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Fiber</span><span class="text-[11px] font-bold">86%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-carbs rounded-full" style="width:86%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Sugar</span><span class="text-[11px] font-bold">70%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-brand rounded-full" style="width:70%"></div></div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">Sodium</span><span class="text-[11px] font-bold">93%</span></div>
+                  <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-carbs rounded-full" style="width:93%"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <nav class="border-t border-line bg-surface px-6 py-3 flex items-center justify-between">
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+            <span class="text-[11px] font-medium">Log</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-brand">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M12 20V4M20 20v-7"/></svg>
+            <span class="text-[11px] font-semibold">Progress</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h6M14 18h6"/><circle cx="12" cy="6" r="2" fill="#FFF"/><circle cx="16" cy="12" r="2" fill="#FFF"/><circle cx="12" cy="18" r="2" fill="#FFF"/></svg>
+            <span class="text-[11px] font-medium">Settings</span>
+          </button>
+        </nav>
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    // Duration selector — swaps the active pill only; sample chart data
+    // doesn't redraw per range yet (see issue #13 resolution comment).
+    document.querySelectorAll('.range-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.range-tab').forEach((b) => {
+          b.classList.remove('active', 'bg-ink', 'text-white');
+          b.classList.add('text-muted');
+        });
+        btn.classList.remove('text-muted');
+        btn.classList.add('active', 'bg-ink', 'text-white');
+      });
+    });
+  </script>
+
+</body>
+</html>
