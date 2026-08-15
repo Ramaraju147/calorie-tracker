@@ -42,6 +42,10 @@ _Avoid_: Daily recap, close-out, end-of-day report
 The RDA-based daily goal for a single nutrient (a macro, a micronutrient, calories, or water) that an Account's Day is measured against. Adjustable per Account.
 _Avoid_: Goal, RDA, limit
 
+**Micronutrient**:
+One of a fixed, curated set of eight vitamins and minerals tracked as Nutrient Targets for every Account — Vitamin D, Calcium, Iron, Potassium, Vitamin B12, Vitamin C, Magnesium, Zinc. Chosen for general-population relevance and reliable Food Lookup data coverage (see [ADR-0003](docs/adr/0003-curated-micronutrient-list-limited-to-eight.md)).
+_Avoid_: Vitamin, mineral, nutrient
+
 **Calorie Target**:
 The Nutrient Target for calories specifically — seeded from an Account's TDEE and Goal, and recalculated weekly from their Weight Trend.
 _Avoid_: Calorie goal, budget
