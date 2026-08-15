@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Weight Trend</title>
+<!--
+  LOCKED. Wayfinder issue #12 (child of map #1), resolved: "Trend
+  first" — the line chart (with per-point value bubbles) is the hero,
+  a duration selector (W/M/3M/6M/All) above it, a 3-tile Change /
+  Start weight / BMI row, a Goal-progress strip, and a full-width
+  "Add current weight" CTA — chosen over two alternates (Goal first:
+  distance-to-Goal hero with a progress ring; Log first: Weight Entry
+  log as the dominant content, chart in an accordion). See issue #12
+  for the full comparison; the three-variant exploration lives on
+  branch prototype/weight-trend-variants.
+
+  Visual identity (color, type, tab bar, light theme) is locked from
+  issue #9. The Tailwind config + gradient/CSS-token block below is
+  copied verbatim from prototype/logging-flow-home/index.html (issue
+  #10) per map #1's Notes — do not re-derive.
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#F3F1EA',
+          surface: '#FFFFFF',
+          ink: '#1B1A17',
+          muted: '#79746C',
+          line: '#E9E4D8',
+          brand: '#7FA636',
+          cal: '#E15A2B',
+          protein: '#8B5FBF',
+          carbs: '#C98A16',
+          fat: '#2E9E78',
+          water: '#2E86AB',
+        },
+        fontFamily: {
+          display: ['"Plus Jakarta Sans"', 'sans-serif'],
+          body: ['"Inter"', 'sans-serif'],
+        },
+        borderRadius: {
+          '2xl': '1.1rem',
+          '3xl': '1.75rem',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .shadow-soft { box-shadow: 0 1px 2px rgba(27,26,23,0.03), 0 6px 16px -10px rgba(27,26,23,0.08); }
+  .shadow-soft-lg { box-shadow: 0 1px 3px rgba(27,26,23,0.04), 0 16px 32px -16px rgba(27,26,23,0.14); }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(180deg); }
+  .phone { height: 812px; }
+
+  /* whole-canvas backdrop — one quiet warm wash, not a rainbow mesh. Apple's restraint: */
+  /* the color lives in the data, the backdrop just sets a calm stage.                  */
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255,178,120,0.22) 0%, transparent 55%),
+      radial-gradient(circle at 85% 100%, rgba(126,190,150,0.16) 0%, transparent 55%),
+      linear-gradient(165deg, #F8F4EA 0%, #EEE7D6 100%);
+    background-attachment: fixed;
+  }
+
+  /* full-bleed gradient banner behind each screen's header + hero — replaces the blob glow */
+  .hero-wash { background: linear-gradient(165deg, #FFE4C2 0%, #FCF0E0 45%, #FFFFFF 80%); }
+
+  /* gradient fills — vivid, used only where an accent belongs (bars, badges) */
+  .grad-cal     { background: linear-gradient(135deg, #FF7A3D 0%, #DE3F0F 100%); }
+  .grad-protein { background: linear-gradient(135deg, #B283F0 0%, #7331C4 100%); }
+  .grad-carbs   { background: linear-gradient(135deg, #F5B62E 0%, #C67200 100%); }
+  .grad-fat     { background: linear-gradient(135deg, #35DBA0 0%, #0A8B5E 100%); }
+  .grad-water   { background: linear-gradient(135deg, #35B6F0 0%, #0968A0 100%); }
+  .grad-brand   { background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%); }
+  .grad-ink     { background: linear-gradient(160deg, #322F27 0%, #121108 100%); }
+
+  /* subtle sheen for standalone cards/buttons — not used on list rows (see entry-row) */
+  .sheen { background: linear-gradient(165deg, #FFFFFF 0%, #F5F1E6 100%); }
+
+  /* Food Log entry rows — icon avatar + crisp edge instead of flat fill or a gradient wash */
+  .entry-row { background: #FFFFFF; }
+  .entry-icon { background: linear-gradient(135deg, #B9DE72 0%, #6C9128 100%); color: #FFFFFF; }
+
+  /* weight-trend-only additions — chart line, per-point bubbles, Goal reference line */
+  .bubble { fill: #FFFFFF; stroke: #7FA636; stroke-width: 2; }
+  .bubble-label { font: 700 10px 'Inter', sans-serif; fill: #1B1A17; }
+  .trend-line { fill: none; stroke: #7FA636; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .trend-area { fill: url(#trendFade); }
+  .goal-line { stroke: #A29C8C; stroke-width: 1.5; stroke-dasharray: 3 4; }
+</style>
+</head>
+<body class="text-ink">
+
+  <div class="min-h-screen flex items-start justify-center py-10 px-4">
+    <div class="w-full max-w-[390px]">
+
+      <!-- ============================================================ -->
+      <!-- LOCKED: "Trend first" — chart hero with per-point value       -->
+      <!-- bubbles, duration selector, Change/Start weight/BMI row,      -->
+      <!-- Goal-progress strip, full-width "Add current weight" CTA      -->
+      <!-- ============================================================ -->
+      <section id="weight-trend-screen" class="phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 overflow-y-auto no-scrollbar">
+
+          <div class="hero-wash">
+            <div class="px-6 pt-8 pb-2 flex items-center justify-between">
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="text-center">
+                <p class="text-[11px] text-ink/55 font-semibold uppercase tracking-wide">Weight Trend</p>
+                <p class="font-display font-bold text-base mt-0.5">Progress</p>
+              </div>
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+            </div>
+
+            <div class="px-6 pt-6 pb-4">
+              <p class="text-sm text-ink/60 font-medium mb-1">Current weight</p>
+              <div class="flex items-end gap-3">
+                <p class="font-display font-extrabold text-[64px] leading-none tracking-tight">71.2</p>
+                <span class="text-lg font-semibold text-ink/50 mb-2">kg</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-brand"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+                <p class="text-sm text-brand font-semibold">3.0 kg since Jun 20 · trending toward Goal</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6">
+            <div class="rounded-2xl border border-line sheen shadow-soft p-4">
+              <div class="flex items-center gap-1 mb-3">
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="w">W</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="m">M</button>
+                <button class="range-tab active px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-ink text-white transition-colors" data-range="3m">3M</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="6m">6M</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="all">All</button>
+              </div>
+              <div class="flex items-center justify-between mb-3">
+                <p class="text-xs font-semibold text-muted">Weight (kg)</p>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[11px] font-semibold text-muted">Goal · 68 kg</span>
+                </div>
+              </div>
+              <svg viewBox="0 0 328 150" class="w-full h-auto overflow-visible">
+                <defs>
+                  <linearGradient id="trendFade" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#7FA636" stop-opacity="0.18"/>
+                    <stop offset="100%" stop-color="#7FA636" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <line class="goal-line" x1="0" y1="140" x2="328" y2="140"/>
+                <path class="trend-area" d="M12,24.9 L55.4,32.3 L98.9,37.9 L142.3,49.0 L185.7,45.3 L229.1,58.3 L272.6,69.4 L316,80.6 L316,150 L12,150 Z"/>
+                <path class="trend-line" d="M12,24.9 L55.4,32.3 L98.9,37.9 L142.3,49.0 L185.7,45.3 L229.1,58.3 L272.6,69.4 L316,80.6"/>
+                <g>
+                  <circle class="bubble" cx="12" cy="24.9" r="3.5"/>
+                  <circle class="bubble" cx="55.4" cy="32.3" r="3.5"/>
+                  <circle class="bubble" cx="98.9" cy="37.9" r="3.5"/>
+                  <circle class="bubble" cx="142.3" cy="49.0" r="3.5"/>
+                  <circle class="bubble" cx="185.7" cy="45.3" r="3.5"/>
+                  <circle class="bubble" cx="229.1" cy="58.3" r="3.5"/>
+                  <circle class="bubble" cx="272.6" cy="69.4" r="3.5"/>
+                  <circle class="bubble" cx="316" cy="80.6" r="4" stroke-width="2.5"/>
+                </g>
+                <g class="bubble-label" text-anchor="middle">
+                  <text x="12" y="16.5">74.2</text>
+                  <text x="98.9" y="29.5">73.5</text>
+                  <text x="185.7" y="37.9">73.1</text>
+                  <text x="272.6" y="61">71.8</text>
+                  <text x="316" y="70" font-weight="800">71.2</text>
+                </g>
+              </svg>
+              <div class="flex justify-between mt-1 px-0.5">
+                <span class="text-[10px] text-muted font-medium">Jun 20</span>
+                <span class="text-[10px] text-muted font-medium">Jul 4</span>
+                <span class="text-[10px] text-muted font-medium">Jul 18</span>
+                <span class="text-[10px] text-muted font-medium">Aug 1</span>
+                <span class="text-[10px] text-ink font-semibold">Today</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-5">
+            <div class="grid grid-cols-3 gap-2.5">
+              <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Change</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1 text-brand">−3.0 <span class="text-[11px] font-semibold text-muted">kg</span></p>
+              </div>
+              <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Start weight</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1">74.2 <span class="text-[11px] font-semibold text-muted">kg</span></p>
+              </div>
+              <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">BMI</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1">24.6</p>
+                <p class="text-[10px] font-semibold text-brand mt-0.5">Normal</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-5 pb-6">
+            <div class="rounded-2xl border border-line bg-bg/60 px-4 py-3.5 flex items-center gap-3">
+              <span class="w-9 h-9 rounded-xl grad-ink flex items-center justify-center shrink-0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M18 13a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M12 2v2M12 4a4 4 0 0 0-4 4"/></svg></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                  <p class="text-xs font-semibold">3.2 kg to Goal</p>
+                  <p class="text-[11px] text-muted font-medium">Goal 68 kg · Lose</p>
+                </div>
+                <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-brand rounded-full" style="width:65%"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 pb-28"></div>
+        </div>
+
+        <div class="absolute left-0 right-0 bottom-[76px] px-6">
+          <button class="w-full grad-ink text-white rounded-2xl py-3.5 font-display font-bold text-sm shadow-soft-lg active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add current weight
+          </button>
+        </div>
+
+        <nav class="border-t border-line bg-surface px-6 py-3 flex items-center justify-between">
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+            <span class="text-[11px] font-medium">Log</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-brand">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M12 20V4M20 20v-7"/></svg>
+            <span class="text-[11px] font-semibold">Progress</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h6M14 18h6"/><circle cx="12" cy="6" r="2" fill="#FFF"/><circle cx="16" cy="12" r="2" fill="#FFF"/><circle cx="12" cy="18" r="2" fill="#FFF"/></svg>
+            <span class="text-[11px] font-medium">Settings</span>
+          </button>
+        </nav>
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    // Duration selector — swaps the active pill only; sample chart data
+    // doesn't redraw per range yet (see issue #12 resolution comment).
+    document.querySelectorAll('.range-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.range-tab').forEach((b) => {
+          b.classList.remove('active', 'bg-ink', 'text-white');
+          b.classList.add('text-muted');
+        });
+        btn.classList.remove('text-muted');
+        btn.classList.add('active', 'bg-ink', 'text-white');
+      });
+    });
+  </script>
+
+</body>
+</html>
