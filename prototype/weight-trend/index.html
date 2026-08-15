@@ -158,7 +158,7 @@
               <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
               <div class="text-center">
                 <p class="text-[11px] text-ink/55 font-semibold uppercase tracking-wide">Weight Trend</p>
-                <p class="font-display font-bold text-base mt-0.5">Last 8 weeks</p>
+                <p class="font-display font-bold text-base mt-0.5">Progress</p>
               </div>
               <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
             </div>
@@ -178,6 +178,13 @@
 
           <div class="px-6 pt-2">
             <div class="rounded-2xl border border-line sheen shadow-soft p-4">
+              <div class="flex items-center gap-1 mb-3" data-range-group="a">
+                <button class="range-tab active px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-ink text-white transition-colors" data-range="8w">8W</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="3m">3M</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="6m">6M</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="1y">1Y</button>
+                <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="all">All</button>
+              </div>
               <div class="flex items-center justify-between mb-3">
                 <p class="text-xs font-semibold text-muted">Weight (kg)</p>
                 <div class="flex items-center gap-1.5">
@@ -321,8 +328,15 @@
           <div class="px-6 pt-4">
             <div class="rounded-2xl border border-line sheen shadow-soft p-4">
               <div class="flex items-center justify-between mb-2">
-                <p class="text-xs font-semibold text-muted">Weight Trend · last 8 weeks</p>
+                <p class="text-xs font-semibold text-muted">Weight Trend</p>
                 <p class="text-xs font-semibold text-ink">71.2 kg</p>
+              </div>
+              <div class="flex items-center gap-1 mb-2.5" data-range-group="b">
+                <button class="range-tab active px-2 py-1 rounded-full text-[10px] font-semibold bg-ink text-white transition-colors" data-range="8w">8W</button>
+                <button class="range-tab px-2 py-1 rounded-full text-[10px] font-semibold text-muted transition-colors" data-range="3m">3M</button>
+                <button class="range-tab px-2 py-1 rounded-full text-[10px] font-semibold text-muted transition-colors" data-range="6m">6M</button>
+                <button class="range-tab px-2 py-1 rounded-full text-[10px] font-semibold text-muted transition-colors" data-range="1y">1Y</button>
+                <button class="range-tab px-2 py-1 rounded-full text-[10px] font-semibold text-muted transition-colors" data-range="all">All</button>
               </div>
               <svg viewBox="0 0 328 90" class="w-full h-16">
                 <defs>
@@ -444,10 +458,17 @@
           <div class="px-6 mt-4">
             <details class="rounded-2xl border border-line bg-surface overflow-hidden">
               <summary class="flex items-center justify-between px-4 py-3.5 cursor-pointer">
-                <span class="font-display font-bold text-sm">Trend chart · last 8 weeks</span>
+                <span class="font-display font-bold text-sm">Trend chart</span>
                 <svg class="chev transition-transform" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
               </summary>
               <div class="px-4 pb-4">
+                <div class="flex items-center gap-1 mb-3" data-range-group="c">
+                  <button class="range-tab active px-2.5 py-1.5 rounded-full text-[11px] font-semibold bg-ink text-white transition-colors" data-range="8w">8W</button>
+                  <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="3m">3M</button>
+                  <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="6m">6M</button>
+                  <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="1y">1Y</button>
+                  <button class="range-tab px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-muted transition-colors" data-range="all">All</button>
+                </div>
                 <svg viewBox="0 0 296 80" class="w-full h-auto">
                   <defs>
                     <linearGradient id="trendFadeC" x1="0" y1="0" x2="0" y2="1">
@@ -612,6 +633,21 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
       if (e.key === 'ArrowLeft') goTo(currentIndex() - 1);
       if (e.key === 'ArrowRight') goTo(currentIndex() + 1);
+    });
+
+    // Weight Trend duration selector — prototype-scope: swaps the active pill only,
+    // sample chart data doesn't actually redraw per range (see issue #12 comment).
+    document.querySelectorAll('[data-range-group]').forEach((group) => {
+      group.querySelectorAll('.range-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          group.querySelectorAll('.range-tab').forEach((b) => {
+            b.classList.remove('active', 'bg-ink', 'text-white');
+            b.classList.add('text-muted');
+          });
+          btn.classList.remove('text-muted');
+          btn.classList.add('active', 'bg-ink', 'text-white');
+        });
+      });
     });
 
     render();
