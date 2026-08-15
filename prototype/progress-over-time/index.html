@@ -248,9 +248,8 @@
 
           <div class="px-6 mt-5 pb-8">
             <div class="rounded-2xl border border-line bg-surface p-4">
-              <p class="font-display font-bold text-sm mb-0.5">Nutrient streak</p>
-              <p class="text-[11px] text-muted mb-3">Last 7 days, with this week's avg</p>
-              <div id="nutrientStreakGrid" class="space-y-2"></div>
+              <p class="font-display font-bold text-sm mb-3">Nutrient adherence</p>
+              <div id="nutrientStreakGrid" class="space-y-3"></div>
             </div>
           </div>
         </div>
@@ -589,27 +588,28 @@
 
     // Variant A's per-nutrient 7-day dot streak — rendered from a small
     // dataset rather than hand-placed, so the grid stays legible to edit.
-    const NUTRIENT_STREAKS = [
-      ['Vit D',      'MXXWMXX', '68%'],
-      ['Calcium',    'MWWMWWM', '88%'],
-      ['Iron',       'WWMWXWW', '75%'],
-      ['Potassium',  'XXWXXMX', '58%'],
-      ['B12',        'MMMWMMM', '125%'],
-      ['Vit C',      'MMMMMMM', '145%'],
-      ['Magnesium',  'XWXXWXX', '66%'],
-      ['Zinc',       'MMWMMMM', '92%'],
-      ['Fiber',      'WWMWWMW', '86%'],
-      ['Sugar',      'MMMWMMM', '70%'],
-      ['Sodium',     'WMWWMWW', '93%'],
+    const NUTRIENT_ADHERENCE = [
+      ['Vit D',      68,  'miss'],
+      ['Calcium',    88,  'watch'],
+      ['Iron',       75,  'watch'],
+      ['Potassium',  58,  'miss'],
+      ['B12',        125, 'met'],
+      ['Vit C',      145, 'met'],
+      ['Magnesium',  66,  'miss'],
+      ['Zinc',       92,  'met'],
+      ['Fiber',      86,  'watch'],
+      ['Sugar',      70,  'met'],
+      ['Sodium',     93,  'watch'],
     ];
-    const VERDICT_CLASS = { M: 'dot-met', W: 'dot-watch', X: 'dot-miss' };
+    const VERDICT_FILL = { met: 'grad-brand', watch: 'grad-carbs', miss: 'grad-cal' };
     const grid = document.getElementById('nutrientStreakGrid');
     if (grid) {
-      NUTRIENT_STREAKS.forEach(([name, days, avgPct]) => {
+      NUTRIENT_ADHERENCE.forEach(([name, pct, verdict]) => {
         const row = document.createElement('div');
-        row.className = 'flex items-center justify-between gap-2';
-        const dots = [...days].map((d) => `<span class="dot ${VERDICT_CLASS[d]}"></span>`).join('');
-        row.innerHTML = `<span class="text-[11px] font-semibold text-muted w-16 shrink-0">${name}</span><span class="flex items-center gap-1.5">${dots}</span><span class="text-[11px] font-bold tabular-nums w-9 text-right shrink-0">${avgPct}</span>`;
+        const barWidth = Math.min(pct, 100);
+        row.innerHTML = `
+          <div class="flex items-center justify-between mb-1"><span class="text-[11px] font-semibold text-muted">${name}</span><span class="text-[11px] font-bold">${pct}%</span></div>
+          <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full ${VERDICT_FILL[verdict]} rounded-full" style="width:${barWidth}%"></div></div>`;
         grid.appendChild(row);
       });
     }
