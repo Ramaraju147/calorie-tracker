@@ -166,7 +166,7 @@
                 <p class="font-display font-extrabold text-[64px] leading-none tracking-tight">4</p>
                 <span class="text-lg font-semibold text-ink/50 mb-2">/ 7 days</span>
               </div>
-              <p class="text-sm text-muted mt-2">Calorie Target · avg 2,010 kcal/day</p>
+              <p class="text-sm text-muted mt-2">Aug 10 – Aug 16</p>
             </div>
           </div>
 
@@ -210,16 +210,18 @@
           <div class="px-6 mt-5">
             <div class="grid grid-cols-3 gap-2.5">
               <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
-                <p class="text-[11px] font-semibold text-muted">Avg calories</p>
-                <p class="font-display font-extrabold text-lg tabular-nums mt-1">2,010</p>
+                <p class="text-[11px] font-semibold text-muted">Best day</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1">Mon</p>
+                <p class="text-[10px] font-semibold text-brand mt-0.5">1,880 kcal</p>
               </div>
               <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
-                <p class="text-[11px] font-semibold text-muted">Days on target</p>
-                <p class="font-display font-extrabold text-lg tabular-nums mt-1 text-brand">4 <span class="text-[11px] font-semibold text-muted">/ 7</span></p>
+                <p class="text-[11px] font-semibold text-muted">Worst day</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1">Sat</p>
+                <p class="text-[10px] font-semibold text-[#E15A2B] mt-0.5">2,280 kcal</p>
               </div>
               <div class="rounded-2xl border border-line p-3 sheen shadow-soft">
-                <p class="text-[11px] font-semibold text-muted">Target</p>
-                <p class="font-display font-extrabold text-lg tabular-nums mt-1">2,000</p>
+                <p class="text-[11px] font-semibold text-muted">Longest streak</p>
+                <p class="font-display font-extrabold text-lg tabular-nums mt-1">1 <span class="text-[11px] font-semibold text-muted">day</span></p>
               </div>
             </div>
           </div>
@@ -247,7 +249,7 @@
           <div class="px-6 mt-5 pb-8">
             <div class="rounded-2xl border border-line bg-surface p-4">
               <p class="font-display font-bold text-sm mb-0.5">Nutrient streak</p>
-              <p class="text-[11px] text-muted mb-3">Micronutrients &amp; watched nutrients, last 7 days</p>
+              <p class="text-[11px] text-muted mb-3">Last 7 days, with this week's avg</p>
               <div id="nutrientStreakGrid" class="space-y-2"></div>
             </div>
           </div>
@@ -588,26 +590,26 @@
     // Variant A's per-nutrient 7-day dot streak — rendered from a small
     // dataset rather than hand-placed, so the grid stays legible to edit.
     const NUTRIENT_STREAKS = [
-      ['Vit D',      'MXXWMXX'],
-      ['Calcium',    'MWWMWWM'],
-      ['Iron',       'WWMWXWW'],
-      ['Potassium',  'XXWXXMX'],
-      ['B12',        'MMMWMMM'],
-      ['Vit C',      'MMMMMMM'],
-      ['Magnesium',  'XWXXWXX'],
-      ['Zinc',       'MMWMMMM'],
-      ['Fiber',      'WWMWWMW'],
-      ['Sugar',      'MMMWMMM'],
-      ['Sodium',     'WMWWMWW'],
+      ['Vit D',      'MXXWMXX', '68%'],
+      ['Calcium',    'MWWMWWM', '88%'],
+      ['Iron',       'WWMWXWW', '75%'],
+      ['Potassium',  'XXWXXMX', '58%'],
+      ['B12',        'MMMWMMM', '125%'],
+      ['Vit C',      'MMMMMMM', '145%'],
+      ['Magnesium',  'XWXXWXX', '66%'],
+      ['Zinc',       'MMWMMMM', '92%'],
+      ['Fiber',      'WWMWWMW', '86%'],
+      ['Sugar',      'MMMWMMM', '70%'],
+      ['Sodium',     'WMWWMWW', '93%'],
     ];
     const VERDICT_CLASS = { M: 'dot-met', W: 'dot-watch', X: 'dot-miss' };
     const grid = document.getElementById('nutrientStreakGrid');
     if (grid) {
-      NUTRIENT_STREAKS.forEach(([name, days]) => {
+      NUTRIENT_STREAKS.forEach(([name, days, avgPct]) => {
         const row = document.createElement('div');
         row.className = 'flex items-center justify-between gap-2';
         const dots = [...days].map((d) => `<span class="dot ${VERDICT_CLASS[d]}"></span>`).join('');
-        row.innerHTML = `<span class="text-[11px] font-semibold text-muted w-20 shrink-0">${name}</span><span class="flex items-center gap-1.5">${dots}</span>`;
+        row.innerHTML = `<span class="text-[11px] font-semibold text-muted w-16 shrink-0">${name}</span><span class="flex items-center gap-1.5">${dots}</span><span class="text-[11px] font-bold tabular-nums w-9 text-right shrink-0">${avgPct}</span>`;
         grid.appendChild(row);
       });
     }
