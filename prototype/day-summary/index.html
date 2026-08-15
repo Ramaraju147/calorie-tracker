@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Day Summary</title>
+<!--
+  LOCKED. Wayfinder issue #11 (child of map #1), resolved: "Timeline /
+  story" — retrospective hero number, horizontal meal timeline, AI
+  Recommendation as a prominent mid-page card, then expandable
+  accordion sections for macros/water, micronutrients, and watched
+  nutrients — chosen over two alternates (Verdict-first, Scorecard
+  grid). See issue #11 for the full comparison; the three-variant
+  exploration lives on branch prototype/day-summary-variants.
+
+  Visual identity (color, type, tab bar, light theme) is locked from
+  issue #9. The Tailwind config + gradient/CSS-token block below is
+  copied verbatim from prototype/logging-flow-home/index.html (issue
+  #10) per map #1's Notes — do not re-derive.
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#F3F1EA',
+          surface: '#FFFFFF',
+          ink: '#1B1A17',
+          muted: '#79746C',
+          line: '#E9E4D8',
+          brand: '#7FA636',
+          cal: '#E15A2B',
+          protein: '#8B5FBF',
+          carbs: '#C98A16',
+          fat: '#2E9E78',
+          water: '#2E86AB',
+        },
+        fontFamily: {
+          display: ['"Plus Jakarta Sans"', 'sans-serif'],
+          body: ['"Inter"', 'sans-serif'],
+        },
+        borderRadius: {
+          '2xl': '1.1rem',
+          '3xl': '1.75rem',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .shadow-soft { box-shadow: 0 1px 2px rgba(27,26,23,0.03), 0 6px 16px -10px rgba(27,26,23,0.08); }
+  .shadow-soft-lg { box-shadow: 0 1px 3px rgba(27,26,23,0.04), 0 16px 32px -16px rgba(27,26,23,0.14); }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(180deg); }
+  .phone { height: 812px; }
+
+  /* whole-canvas backdrop — one quiet warm wash, not a rainbow mesh. Apple's restraint: */
+  /* the color lives in the data, the backdrop just sets a calm stage.                  */
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255,178,120,0.22) 0%, transparent 55%),
+      radial-gradient(circle at 85% 100%, rgba(126,190,150,0.16) 0%, transparent 55%),
+      linear-gradient(165deg, #F8F4EA 0%, #EEE7D6 100%);
+    background-attachment: fixed;
+  }
+
+  /* full-bleed gradient banner behind each screen's header + hero — replaces the blob glow */
+  .hero-wash { background: linear-gradient(165deg, #FFE4C2 0%, #FCF0E0 45%, #FFFFFF 80%); }
+
+  /* gradient fills — vivid, used only where an accent belongs (bars, badges) */
+  .grad-cal     { background: linear-gradient(135deg, #FF7A3D 0%, #DE3F0F 100%); }
+  .grad-protein { background: linear-gradient(135deg, #B283F0 0%, #7331C4 100%); }
+  .grad-carbs   { background: linear-gradient(135deg, #F5B62E 0%, #C67200 100%); }
+  .grad-fat     { background: linear-gradient(135deg, #35DBA0 0%, #0A8B5E 100%); }
+  .grad-water   { background: linear-gradient(135deg, #35B6F0 0%, #0968A0 100%); }
+  .grad-brand   { background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%); }
+  .grad-ink     { background: linear-gradient(160deg, #322F27 0%, #121108 100%); }
+
+  /* subtle sheen for standalone cards/buttons — not used on list rows (see entry-row) */
+  .sheen { background: linear-gradient(165deg, #FFFFFF 0%, #F5F1E6 100%); }
+
+  /* Food Log entry rows — icon avatar + crisp edge instead of flat fill or a gradient wash */
+  .entry-row { background: #FFFFFF; }
+  .entry-icon { background: linear-gradient(135deg, #B9DE72 0%, #6C9128 100%); color: #FFFFFF; }
+
+  /* ---- day-summary-only addition: status chips (Micronutrients / Watched Nutrients) ---- */
+  /* a colored border + tint carries the verdict; traffic-light, legible at a glance */
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: .01em; border: 1.5px solid; }
+  .chip .chip-dot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+  .chip .chip-pct { opacity: .68; font-weight: 600; margin-left: 1px; }
+  .chip-met { color: #4C6B1F; border-color: #A9C97E; background: #EFF6E4; }
+  .chip-met .chip-dot { background: #7FA636; }
+  .chip-watch { color: #93650C; border-color: #E4B65B; background: #FBF1DC; }
+  .chip-watch .chip-dot { background: #C98A16; }
+  .chip-miss { color: #A3431B; border-color: #EB8F63; background: #FCEAE0; }
+  .chip-miss .chip-dot { background: #E15A2B; }
+</style>
+</head>
+<body class="text-ink">
+
+  <div class="min-h-screen flex items-start justify-center py-10 px-4">
+    <div class="w-full max-w-[390px]">
+
+      <!-- ============================================================ -->
+      <!-- LOCKED: "Timeline / story" — retrospective hero → meal        -->
+      <!-- timeline → AI Recommendation card → accordion detail sections -->
+      <!-- ============================================================ -->
+      <section id="day-summary-screen" class="phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 overflow-y-auto no-scrollbar">
+
+          <div class="hero-wash">
+            <div class="px-6 pt-8 pb-2 flex items-center justify-between">
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="text-center">
+                <p class="text-[11px] text-ink/55 font-semibold uppercase tracking-wide">Day Summary</p>
+                <p class="font-display font-bold text-base mt-0.5">Thu, Aug 14</p>
+              </div>
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+            </div>
+
+            <div class="px-6 pt-6 pb-6">
+              <p class="text-sm text-ink/60 font-medium mb-1">Calories logged</p>
+              <p class="font-display font-extrabold text-[64px] leading-none tracking-tight">1,850</p>
+              <p class="text-sm text-ink/60 mt-2">150 kcal under your 2,000 target</p>
+            </div>
+          </div>
+
+          <div class="px-6 mt-2">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="rounded-2xl border border-line p-3.5 sheen shadow-soft flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl entry-icon flex items-center justify-center shrink-0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10c0 4.4 3.5 8 8 8s8-3.6 8-8M3 10h18M14.5 5.5 17 3"/></svg></span>
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold truncate">Breakfast</p>
+                  <p class="text-[11px] text-muted tabular-nums">320 kcal</p>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-line p-3.5 sheen shadow-soft flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl entry-icon flex items-center justify-center shrink-0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20C6 11 12 4 20 4c0 8-7 14-16 16Z M8 18c2-4 5-8 10-11"/></svg></span>
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold truncate">Lunch</p>
+                  <p class="text-[11px] text-muted tabular-nums">650 kcal</p>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-line p-3.5 sheen shadow-soft flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl entry-icon flex items-center justify-center shrink-0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12c0-5 3-8 8-8s8 3 8 8-3 6-8 6-8-1-8-6Z M9 8v8M13 7v9M17 9v6"/></svg></span>
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold truncate">Dinner</p>
+                  <p class="text-[11px] text-muted tabular-nums">580 kcal</p>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-line p-3.5 sheen shadow-soft flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl entry-icon flex items-center justify-center shrink-0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3C8 3 6 8 6 13c0 5 3 8 6 8s6-3 6-8c0-5-2-10-6-10Z M12 3c-1.3 3-1.3 15 0 18"/></svg></span>
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold truncate">Snack</p>
+                  <p class="text-[11px] text-muted tabular-nums">300 kcal</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-6">
+            <div class="rounded-2xl grad-brand text-white p-4 shadow-soft-lg">
+              <div class="flex items-center gap-1.5 mb-2">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-white/75 shrink-0"><path d="M12 3l1.6 4.9L18 9.5l-4.4 1.6L12 16l-1.6-4.9L6 9.5l4.4-1.6L12 3Z"/></svg>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-white/75">AI Recommendation</p>
+              </div>
+              <p class="text-sm leading-relaxed text-white/95">Solid day — protein and carbs landed right on target. Potassium and magnesium trailed behind; a banana or leafy greens would close the gap tomorrow. Sodium ran close to your limit, mostly from the afternoon snack.</p>
+            </div>
+          </div>
+
+          <div class="px-6 mt-7 pb-28 space-y-3">
+            <details class="rounded-2xl border border-line bg-surface overflow-hidden" open>
+              <summary class="flex items-center justify-between px-4 py-3.5 cursor-pointer">
+                <span class="font-display font-bold text-sm">Macros &amp; water</span>
+                <svg class="chev transition-transform" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </summary>
+              <div class="px-4 pb-4 grid grid-cols-2 gap-2.5">
+                <div class="rounded-xl grad-protein text-white p-3 shadow-soft">
+                  <p class="text-[11px] font-semibold text-white/80">Protein</p>
+                  <p class="font-display font-extrabold text-xl tabular-nums leading-tight mt-1">91%</p>
+                  <p class="text-[11px] text-white/75 mt-0.5 tabular-nums">118/130g</p>
+                </div>
+                <div class="rounded-xl grad-carbs text-white p-3 shadow-soft">
+                  <p class="text-[11px] font-semibold text-white/80">Carbs</p>
+                  <p class="font-display font-extrabold text-xl tabular-nums leading-tight mt-1">93%</p>
+                  <p class="text-[11px] text-white/75 mt-0.5 tabular-nums">205/220g</p>
+                </div>
+                <div class="rounded-xl grad-fat text-white p-3 shadow-soft">
+                  <p class="text-[11px] font-semibold text-white/80">Fat</p>
+                  <p class="font-display font-extrabold text-xl tabular-nums leading-tight mt-1">89%</p>
+                  <p class="text-[11px] text-white/75 mt-0.5 tabular-nums">58/65g</p>
+                </div>
+                <div class="rounded-xl grad-water text-white p-3 shadow-soft">
+                  <p class="text-[11px] font-semibold text-white/80">Water</p>
+                  <p class="font-display font-extrabold text-xl tabular-nums leading-tight mt-1">80%</p>
+                  <p class="text-[11px] text-white/75 mt-0.5 tabular-nums">2.4/3.0L</p>
+                </div>
+              </div>
+            </details>
+
+            <details class="rounded-2xl border border-line bg-surface overflow-hidden">
+              <summary class="flex items-center justify-between px-4 py-3.5 cursor-pointer">
+                <span class="font-display font-bold text-sm">Micronutrients</span>
+                <svg class="chev transition-transform" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </summary>
+              <div class="px-4 pb-4 flex flex-wrap gap-2">
+                <span class="chip chip-miss"><span class="chip-dot"></span>Vit D<span class="chip-pct">60%</span></span>
+                <span class="chip chip-watch"><span class="chip-dot"></span>Calcium<span class="chip-pct">85%</span></span>
+                <span class="chip chip-watch"><span class="chip-dot"></span>Iron<span class="chip-pct">70%</span></span>
+                <span class="chip chip-miss"><span class="chip-dot"></span>Potassium<span class="chip-pct">55%</span></span>
+                <span class="chip chip-met"><span class="chip-dot"></span>B12<span class="chip-pct">120%</span></span>
+                <span class="chip chip-met"><span class="chip-dot"></span>Vit C<span class="chip-pct">140%</span></span>
+                <span class="chip chip-miss"><span class="chip-dot"></span>Magnesium<span class="chip-pct">65%</span></span>
+                <span class="chip chip-met"><span class="chip-dot"></span>Zinc<span class="chip-pct">90%</span></span>
+              </div>
+            </details>
+
+            <details class="rounded-2xl border border-line bg-surface overflow-hidden">
+              <summary class="flex items-center justify-between px-4 py-3.5 cursor-pointer">
+                <span class="font-display font-bold text-sm">Watched nutrients</span>
+                <svg class="chev transition-transform" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </summary>
+              <div class="px-4 pb-4 flex flex-wrap gap-2">
+                <span class="chip chip-watch"><span class="chip-dot"></span>Fiber<span class="chip-pct">22/28g</span></span>
+                <span class="chip chip-met"><span class="chip-dot"></span>Sugar<span class="chip-pct">38/50g</span></span>
+                <span class="chip chip-watch"><span class="chip-dot"></span>Sodium<span class="chip-pct">2100/2300mg</span></span>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <nav class="border-t border-line bg-surface px-6 py-3 flex items-center justify-between">
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+            <span class="text-[11px] font-medium">Log</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-brand">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M12 20V4M20 20v-7"/></svg>
+            <span class="text-[11px] font-semibold">Progress</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h6M14 18h6"/><circle cx="12" cy="6" r="2" fill="#FFF"/><circle cx="16" cy="12" r="2" fill="#FFF"/><circle cx="12" cy="18" r="2" fill="#FFF"/></svg>
+            <span class="text-[11px] font-medium">Settings</span>
+          </button>
+        </nav>
+      </section>
+
+    </div>
+  </div>
+
+</body>
+</html>
