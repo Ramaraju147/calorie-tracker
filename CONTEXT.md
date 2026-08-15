@@ -17,7 +17,7 @@ A named grouping (Breakfast, Lunch, Dinner, Snack) that Food Entries are logged 
 _Avoid_: Meal slot
 
 **Food Entry**:
-A single logged food item within a Meal, carrying its calories, macros, and micronutrients — sourced from a Food Lookup or an AI Estimate.
+A single logged food item within a Meal, carrying its calories, macros, micronutrients, and — for beverages — water content, sourced from a Food Lookup or an AI Estimate.
 _Avoid_: Log entry, item
 
 **Food Lookup**:
@@ -27,6 +27,10 @@ _Avoid_: Food search, database lookup
 **AI Estimate**:
 The nutrient values Claude generates for a Food Entry when a Food Lookup finds no match.
 _Avoid_: AI guess, estimation
+
+**Water Entry**:
+A single logged instance of drinking plain water (still, sparkling, or electrolyte-added) for an Account, independent of any Meal. Counts toward the Water Nutrient Target alongside the water content of any beverage logged as a Food Entry; flavored water is logged as a Food Entry instead, not a Water Entry.
+_Avoid_: Water log, hydration entry
 
 **Day**:
 The single-day unit an Account's Food Log, Water Entries, and progress are tracked against; closes into a Day Summary.
