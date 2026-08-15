@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Weight Trend — prototype</title>
+<!--
+  PROTOTYPE. Wayfinder issue #12 (child of map #1). Answers: what should
+  the Weight Trend chart screen look like, applying the visual identity
+  locked in issue #9 and canonically implemented in prototype/logging-flow-home
+  (issue #10)? The Tailwind config + gradient/CSS-token block below is
+  copied VERBATIM from that file per map #1's Notes — do not re-derive.
+
+  Three structurally different variants, switchable via ?variant=a|b|c
+  and the floating bar at the bottom (also arrow-key driven):
+    A — Trend first: the line chart (with per-point value bubbles, closest
+        reinterpretation of the user-supplied screenshot reference) is the
+        hero, a 2x2 stat-tile grid and a full-width "Add current weight"
+        CTA sit below it.
+    B — Goal first: the dominant oversized numeral is distance-to-Goal
+        (not raw weight), paired with a goal-progress ring; the chart is
+        demoted to a small unlabelled sparkline, and recent Weight Entries
+        appear as a list below it.
+    C — Log first: a modest hero numeral, a horizontal-scroll stat-chip
+        row (echoing the Progress Rail's macro row from issue #10), then
+        the Weight Entry log itself is the dominant, scrollable content —
+        the chart is tucked into a collapsed accordion, reusing the
+        Day Summary's accordion/chip pattern.
+
+  THROWAWAY — capture the winning variant into the real code, drop this
+  switcher/the losing variants onto this throwaway branch per the
+  prototype skill (SKILL.md step 6 / UI.md step 6). Do not ship this
+  file's variant switcher to production.
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#F3F1EA',
+          surface: '#FFFFFF',
+          ink: '#1B1A17',
+          muted: '#79746C',
+          line: '#E9E4D8',
+          brand: '#7FA636',
+          cal: '#E15A2B',
+          protein: '#8B5FBF',
+          carbs: '#C98A16',
+          fat: '#2E9E78',
+          water: '#2E86AB',
+        },
+        fontFamily: {
+          display: ['"Plus Jakarta Sans"', 'sans-serif'],
+          body: ['"Inter"', 'sans-serif'],
+        },
+        borderRadius: {
+          '2xl': '1.1rem',
+          '3xl': '1.75rem',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .shadow-soft { box-shadow: 0 1px 2px rgba(27,26,23,0.03), 0 6px 16px -10px rgba(27,26,23,0.08); }
+  .shadow-soft-lg { box-shadow: 0 1px 3px rgba(27,26,23,0.04), 0 16px 32px -16px rgba(27,26,23,0.14); }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(180deg); }
+  .phone { height: 812px; }
+
+  /* whole-canvas backdrop — one quiet warm wash, not a rainbow mesh. Apple's restraint: */
+  /* the color lives in the data, the backdrop just sets a calm stage.                  */
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255,178,120,0.22) 0%, transparent 55%),
+      radial-gradient(circle at 85% 100%, rgba(126,190,150,0.16) 0%, transparent 55%),
+      linear-gradient(165deg, #F8F4EA 0%, #EEE7D6 100%);
+    background-attachment: fixed;
+  }
+
+  /* full-bleed gradient banner behind each screen's header + hero — replaces the blob glow */
+  .hero-wash { background: linear-gradient(165deg, #FFE4C2 0%, #FCF0E0 45%, #FFFFFF 80%); }
+
+  /* gradient fills — vivid, used only where an accent belongs (bars, badges) */
+  .grad-cal     { background: linear-gradient(135deg, #FF7A3D 0%, #DE3F0F 100%); }
+  .grad-protein { background: linear-gradient(135deg, #B283F0 0%, #7331C4 100%); }
+  .grad-carbs   { background: linear-gradient(135deg, #F5B62E 0%, #C67200 100%); }
+  .grad-fat     { background: linear-gradient(135deg, #35DBA0 0%, #0A8B5E 100%); }
+  .grad-water   { background: linear-gradient(135deg, #35B6F0 0%, #0968A0 100%); }
+  .grad-brand   { background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%); }
+  .grad-ink     { background: linear-gradient(160deg, #322F27 0%, #121108 100%); }
+
+  /* subtle sheen for standalone cards/buttons — not used on list rows (see entry-row) */
+  .sheen { background: linear-gradient(165deg, #FFFFFF 0%, #F5F1E6 100%); }
+
+  /* Food Log entry rows — icon avatar + crisp edge instead of flat fill or a gradient wash */
+  .entry-row { background: #FFFFFF; }
+  .entry-icon { background: linear-gradient(135deg, #B9DE72 0%, #6C9128 100%); color: #FFFFFF; }
+
+  /* status chips, reused verbatim from prototype/day-summary (issue #11) for the same */
+  /* traffic-light "is this good or not" verdict — here: weight entry deltas vs Goal    */
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: .01em; border: 1.5px solid; }
+  .chip .chip-dot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+  .chip .chip-pct { opacity: .68; font-weight: 600; margin-left: 1px; }
+  .chip-met { color: #4C6B1F; border-color: #A9C97E; background: #EFF6E4; }
+  .chip-met .chip-dot { background: #7FA636; }
+  .chip-watch { color: #93650C; border-color: #E4B65B; background: #FBF1DC; }
+  .chip-watch .chip-dot { background: #C98A16; }
+  .chip-miss { color: #A3431B; border-color: #EB8F63; background: #FCEAE0; }
+  .chip-miss .chip-dot { background: #E15A2B; }
+
+  /* ---- weight-trend-only additions ---- */
+  .ring-track { stroke: #E9E4D8; }
+  .ring-progress { transition: stroke-dashoffset 1s cubic-bezier(.16,1,.3,1); filter: drop-shadow(0 1px 1px rgba(27,26,23,0.12)); }
+  .bubble { fill: #FFFFFF; stroke: #7FA636; stroke-width: 2; }
+  .bubble-label { font: 700 10px 'Inter', sans-serif; fill: #1B1A17; }
+  .trend-line { fill: none; stroke: #7FA636; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .trend-area { fill: url(#trendFade); }
+  .goal-line { stroke: #A29C8C; stroke-width: 1.5; stroke-dasharray: 3 4; }
+
+  /* one staggered rise on entry — the only orchestrated motion, replayed on variant switch */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .stagger > * { animation: fadeUp .5s cubic-bezier(.16,1,.3,1) both; }
+  .stagger > *:nth-child(1) { animation-delay: .02s; }
+  .stagger > *:nth-child(2) { animation-delay: .08s; }
+  .stagger > *:nth-child(3) { animation-delay: .14s; }
+  .stagger > *:nth-child(4) { animation-delay: .20s; }
+  .stagger > *:nth-child(5) { animation-delay: .26s; }
+  .stagger > *:nth-child(6) { animation-delay: .32s; }
+  @media (prefers-reduced-motion: reduce) {
+    .stagger > * { animation: none; }
+    .ring-progress { transition: none; }
+  }
+</style>
+</head>
+<body class="text-ink">
+
+  <div class="min-h-screen flex items-start justify-center py-10 px-4">
+    <div class="w-full max-w-[390px] relative">
+
+      <!-- ============================================================ -->
+      <!-- VARIANT A — Trend first: chart hero, 2x2 stat grid, full CTA  -->
+      <!-- ============================================================ -->
+      <section id="variant-a" class="variant phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="stagger flex-1 overflow-y-auto no-scrollbar">
+
+          <div class="hero-wash">
+            <div class="px-6 pt-8 pb-2 flex items-center justify-between">
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="text-center">
+                <p class="text-[11px] text-ink/55 font-semibold uppercase tracking-wide">Weight Trend</p>
+                <p class="font-display font-bold text-base mt-0.5">Last 8 weeks</p>
+              </div>
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+            </div>
+
+            <div class="px-6 pt-6 pb-6">
+              <p class="text-sm text-ink/60 font-medium mb-1">Current weight</p>
+              <div class="flex items-end gap-3">
+                <p class="font-display font-extrabold text-[64px] leading-none tracking-tight">71.2</p>
+                <span class="text-lg font-semibold text-ink/50 mb-2">kg</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-brand"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+                <p class="text-sm text-brand font-semibold">3.0 kg since Jun 20 · trending toward Goal</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 pt-2">
+            <div class="rounded-2xl border border-line sheen shadow-soft p-4">
+              <div class="flex items-center justify-between mb-3">
+                <p class="text-xs font-semibold text-muted">Weight (kg)</p>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-3 h-px border-t border-dashed border-[#A29C8C]"></span>
+                  <span class="text-[11px] font-semibold text-muted">Goal · 68 kg</span>
+                </div>
+              </div>
+              <svg viewBox="0 0 328 150" class="w-full h-auto overflow-visible">
+                <defs>
+                  <linearGradient id="trendFade" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#7FA636" stop-opacity="0.18"/>
+                    <stop offset="100%" stop-color="#7FA636" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <line class="goal-line" x1="0" y1="140" x2="328" y2="140"/>
+                <path class="trend-area" d="M12,24.9 L55.4,32.3 L98.9,37.9 L142.3,49.0 L185.7,45.3 L229.1,58.3 L272.6,69.4 L316,80.6 L316,150 L12,150 Z"/>
+                <path class="trend-line" d="M12,24.9 L55.4,32.3 L98.9,37.9 L142.3,49.0 L185.7,45.3 L229.1,58.3 L272.6,69.4 L316,80.6"/>
+                <g>
+                  <circle class="bubble" cx="12" cy="24.9" r="3.5"/>
+                  <circle class="bubble" cx="55.4" cy="32.3" r="3.5"/>
+                  <circle class="bubble" cx="98.9" cy="37.9" r="3.5"/>
+                  <circle class="bubble" cx="142.3" cy="49.0" r="3.5"/>
+                  <circle class="bubble" cx="185.7" cy="45.3" r="3.5"/>
+                  <circle class="bubble" cx="229.1" cy="58.3" r="3.5"/>
+                  <circle class="bubble" cx="272.6" cy="69.4" r="3.5"/>
+                  <circle class="bubble" cx="316" cy="80.6" r="4" stroke-width="2.5"/>
+                </g>
+                <g class="bubble-label" text-anchor="middle">
+                  <text x="12" y="16.5">74.2</text>
+                  <text x="98.9" y="29.5">73.5</text>
+                  <text x="185.7" y="37.9">73.1</text>
+                  <text x="272.6" y="61">71.8</text>
+                  <text x="316" y="70" font-weight="800">71.2</text>
+                </g>
+              </svg>
+              <div class="flex justify-between mt-1 px-0.5">
+                <span class="text-[10px] text-muted font-medium">Jun 20</span>
+                <span class="text-[10px] text-muted font-medium">Jul 4</span>
+                <span class="text-[10px] text-muted font-medium">Jul 18</span>
+                <span class="text-[10px] text-muted font-medium">Aug 1</span>
+                <span class="text-[10px] text-ink font-semibold">Today</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-5">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="rounded-2xl border border-line p-3.5 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Average weight</p>
+                <p class="font-display font-extrabold text-xl tabular-nums mt-1">72.9 <span class="text-xs font-semibold text-muted">kg</span></p>
+              </div>
+              <div class="rounded-2xl border border-line p-3.5 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Change</p>
+                <p class="font-display font-extrabold text-xl tabular-nums mt-1 text-brand">−3.0 <span class="text-xs font-semibold text-muted">kg</span></p>
+              </div>
+              <div class="rounded-2xl border border-line p-3.5 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Maximum</p>
+                <p class="font-display font-extrabold text-xl tabular-nums mt-1">74.2 <span class="text-xs font-semibold text-muted">kg</span></p>
+              </div>
+              <div class="rounded-2xl border border-line p-3.5 sheen shadow-soft">
+                <p class="text-[11px] font-semibold text-muted">Minimum</p>
+                <p class="font-display font-extrabold text-xl tabular-nums mt-1">71.2 <span class="text-xs font-semibold text-muted">kg</span></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-5 pb-6">
+            <div class="rounded-2xl border border-line bg-bg/60 px-4 py-3.5 flex items-center gap-3">
+              <span class="w-9 h-9 rounded-xl grad-ink flex items-center justify-center shrink-0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M18 13a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M12 2v2M12 4a4 4 0 0 0-4 4"/></svg></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                  <p class="text-xs font-semibold">3.2 kg to Goal</p>
+                  <p class="text-[11px] text-muted font-medium">Goal 68 kg · Lose</p>
+                </div>
+                <div class="h-2 rounded-full bg-line overflow-hidden"><div class="h-full grad-brand rounded-full" style="width:65%"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 pb-28"></div>
+        </div>
+
+        <div class="absolute left-0 right-0 bottom-[76px] px-6">
+          <button class="w-full grad-ink text-white rounded-2xl py-3.5 font-display font-bold text-sm shadow-soft-lg active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add current weight
+          </button>
+        </div>
+
+        <nav class="border-t border-line bg-surface px-6 py-3 flex items-center justify-between">
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+            <span class="text-[11px] font-medium">Log</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-brand">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M12 20V4M20 20v-7"/></svg>
+            <span class="text-[11px] font-semibold">Progress</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h6M14 18h6"/><circle cx="12" cy="6" r="2" fill="#FFF"/><circle cx="16" cy="12" r="2" fill="#FFF"/><circle cx="12" cy="18" r="2" fill="#FFF"/></svg>
+            <span class="text-[11px] font-medium">Settings</span>
+          </button>
+        </nav>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- VARIANT B — Goal first: distance-to-Goal hero + ring, chart   -->
+      <!-- demoted to a small sparkline, recent entries as a list        -->
+      <!-- ============================================================ -->
+      <section id="variant-b" class="variant phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="stagger flex-1 overflow-y-auto no-scrollbar">
+
+          <div class="hero-wash">
+            <div class="px-6 pt-8 pb-2 flex items-center justify-between">
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="text-center">
+                <p class="text-[11px] text-ink/55 font-semibold uppercase tracking-wide">Weight Trend</p>
+                <p class="font-display font-bold text-base mt-0.5">Goal · Lose</p>
+              </div>
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+
+            <div class="px-6 pt-5 pb-6 flex items-center gap-5">
+              <svg width="88" height="88" viewBox="0 0 64 64" class="shrink-0">
+                <circle cx="32" cy="32" r="27" fill="none" stroke-width="6" class="ring-track"/>
+                <circle cx="32" cy="32" r="27" fill="none" stroke-width="6" stroke="#7FA636" stroke-linecap="round" stroke-dasharray="169.6" stroke-dashoffset="169.6" data-offset="59.4" class="ring-progress" transform="rotate(-90 32 32)"/>
+              </svg>
+              <div class="min-w-0">
+                <p class="text-sm text-ink/60 font-medium mb-1">Left to reach Goal</p>
+                <div class="flex items-end gap-2">
+                  <p class="font-display font-extrabold text-[52px] leading-none tracking-tight">3.2</p>
+                  <span class="text-base font-semibold text-ink/50 mb-1">kg</span>
+                </div>
+                <p class="text-xs text-muted mt-1.5">65% of the way from 74.2 kg to your 68 kg Goal</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 pt-4">
+            <div class="rounded-2xl border border-line sheen shadow-soft p-4">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-xs font-semibold text-muted">Weight Trend · last 8 weeks</p>
+                <p class="text-xs font-semibold text-ink">71.2 kg</p>
+              </div>
+              <svg viewBox="0 0 328 90" class="w-full h-16">
+                <defs>
+                  <linearGradient id="trendFadeB" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#7FA636" stop-opacity="0.16"/>
+                    <stop offset="100%" stop-color="#7FA636" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path fill="url(#trendFadeB)" d="M12,4.9 L55.4,10.3 L98.9,14.9 L142.3,23.0 L185.7,20.3 L229.1,30.3 L272.6,39.4 L316,48.6 L316,90 L12,90 Z"/>
+                <path class="trend-line" stroke-width="2" d="M12,4.9 L55.4,10.3 L98.9,14.9 L142.3,23.0 L185.7,20.3 L229.1,30.3 L272.6,39.4 L316,48.6"/>
+                <circle class="bubble" stroke-width="1.5" cx="12" cy="4.9" r="2.5"/>
+                <circle class="bubble" stroke-width="1.5" cx="316" cy="48.6" r="3"/>
+              </svg>
+              <div class="flex justify-between mt-1">
+                <span class="text-[10px] text-muted font-medium">74.2 kg · Jun 20</span>
+                <span class="text-[10px] text-ink font-semibold">71.2 kg · Today</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-6 pb-28">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-display font-bold text-base">Recent Weight Entries</h2>
+              <button class="text-brand text-sm font-semibold">See all</button>
+            </div>
+            <div class="divide-y divide-line">
+              <div class="flex items-center gap-3 py-2.5">
+                <span class="w-8 h-8 rounded-lg entry-icon flex items-center justify-center shrink-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="4" y="8" width="3" height="8" rx="1"/><rect x="17" y="8" width="3" height="8" rx="1"/><path d="M7 12h10"/></svg></span>
+                <div class="flex-1 min-w-0 flex items-center justify-between gap-2"><span class="text-sm font-medium">Today</span><span class="text-sm font-semibold tabular-nums">71.2 kg</span></div>
+                <span class="chip chip-met shrink-0"><span class="chip-dot"></span>−0.6</span>
+              </div>
+              <div class="flex items-center gap-3 py-2.5">
+                <span class="w-8 h-8 rounded-lg entry-icon flex items-center justify-center shrink-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="4" y="8" width="3" height="8" rx="1"/><rect x="17" y="8" width="3" height="8" rx="1"/><path d="M7 12h10"/></svg></span>
+                <div class="flex-1 min-w-0 flex items-center justify-between gap-2"><span class="text-sm font-medium">Aug 8</span><span class="text-sm font-semibold tabular-nums">71.8 kg</span></div>
+                <span class="chip chip-met shrink-0"><span class="chip-dot"></span>−0.6</span>
+              </div>
+              <div class="flex items-center gap-3 py-2.5">
+                <span class="w-8 h-8 rounded-lg entry-icon flex items-center justify-center shrink-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="4" y="8" width="3" height="8" rx="1"/><rect x="17" y="8" width="3" height="8" rx="1"/><path d="M7 12h10"/></svg></span>
+                <div class="flex-1 min-w-0 flex items-center justify-between gap-2"><span class="text-sm font-medium">Aug 1</span><span class="text-sm font-semibold tabular-nums">72.4 kg</span></div>
+                <span class="chip chip-watch shrink-0"><span class="chip-dot"></span>+0.2</span>
+              </div>
+              <div class="flex items-center gap-3 py-2.5">
+                <span class="w-8 h-8 rounded-lg entry-icon flex items-center justify-center shrink-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><rect x="4" y="8" width="3" height="8" rx="1"/><rect x="17" y="8" width="3" height="8" rx="1"/><path d="M7 12h10"/></svg></span>
+                <div class="flex-1 min-w-0 flex items-center justify-between gap-2"><span class="text-sm font-medium">Jul 25</span><span class="text-sm font-semibold tabular-nums">72.9 kg</span></div>
+                <span class="chip chip-met shrink-0"><span class="chip-dot"></span>−0.2</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="absolute right-5 bottom-[92px] w-11 h-11 rounded-full grad-brand text-white shadow-soft-lg flex items-center justify-center active:scale-95 transition-transform">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+
+        <nav class="border-t border-line bg-surface px-6 py-3 flex items-center justify-between">
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+            <span class="text-[11px] font-medium">Log</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-brand">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M12 20V4M20 20v-7"/></svg>
+            <span class="text-[11px] font-semibold">Progress</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h6M14 18h6"/><circle cx="12" cy="6" r="2" fill="#FFF"/><circle cx="16" cy="12" r="2" fill="#FFF"/><circle cx="12" cy="18" r="2" fill="#FFF"/></svg>
+            <span class="text-[11px] font-medium">Settings</span>
+          </button>
+        </nav>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- VARIANT C — Log first: modest hero, horizontal stat-chip row, -->
+      <!-- Weight Entry log is the dominant content, chart in accordion  -->
+      <!-- ============================================================ -->
+      <section id="variant-c" class="variant phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="stagger flex-1 overflow-y-auto no-scrollbar">
+
+          <div class="hero-wash">
+            <div class="px-6 pt-8 pb-2 flex items-center justify-between">
+              <button class="w-9 h-9 rounded-full bg-surface shadow-soft flex items-center justify-center text-ink active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="text-center">
+                <p class="text-[11px] text-ink/55 font-semibold uppercase tracking-wide">Weight Trend</p>
+                <p class="font-display font-bold text-base mt-0.5">Weight Entries</p>
+              </div>
+              <span class="w-9 h-9"></span>
+            </div>
+
+            <div class="px-6 pt-5 pb-5">
+              <p class="text-sm text-ink/60 font-medium mb-1">Latest entry</p>
+              <div class="flex items-end gap-3">
+                <p class="font-display font-extrabold text-[44px] leading-none tracking-tight">71.2</p>
+                <span class="text-base font-semibold text-ink/50 mb-1">kg</span>
+                <span class="text-sm text-brand font-semibold mb-1.5">3.2 kg to Goal</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 pt-2 pb-1">
+            <div class="flex gap-2.5 overflow-x-auto no-scrollbar -mx-6 px-6">
+              <div class="rounded-2xl border border-line sheen shadow-soft px-4 py-2.5 shrink-0">
+                <p class="text-[10px] font-semibold text-muted whitespace-nowrap">Average</p>
+                <p class="font-display font-bold text-sm tabular-nums whitespace-nowrap">72.9 kg</p>
+              </div>
+              <div class="rounded-2xl border border-line sheen shadow-soft px-4 py-2.5 shrink-0">
+                <p class="text-[10px] font-semibold text-muted whitespace-nowrap">Change</p>
+                <p class="font-display font-bold text-sm tabular-nums whitespace-nowrap text-brand">−3.0 kg</p>
+              </div>
+              <div class="rounded-2xl border border-line sheen shadow-soft px-4 py-2.5 shrink-0">
+                <p class="text-[10px] font-semibold text-muted whitespace-nowrap">Maximum</p>
+                <p class="font-display font-bold text-sm tabular-nums whitespace-nowrap">74.2 kg</p>
+              </div>
+              <div class="rounded-2xl border border-line sheen shadow-soft px-4 py-2.5 shrink-0">
+                <p class="text-[10px] font-semibold text-muted whitespace-nowrap">Minimum</p>
+                <p class="font-display font-bold text-sm tabular-nums whitespace-nowrap">71.2 kg</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-6 mt-4">
+            <details class="rounded-2xl border border-line bg-surface overflow-hidden">
+              <summary class="flex items-center justify-between px-4 py-3.5 cursor-pointer">
+                <span class="font-display font-bold text-sm">Trend chart · last 8 weeks</span>
+                <svg class="chev transition-transform" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </summary>
+              <div class="px-4 pb-4">
+                <svg viewBox="0 0 296 80" class="w-full h-auto">
+                  <defs>
+                    <linearGradient id="trendFadeC" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#7FA636" stop-opacity="0.16"/>
+                      <stop offset="100%" stop-color="#7FA636" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <line class="goal-line" x1="0" y1="74" x2="296" y2="74"/>
+                  <path fill="url(#trendFadeC)" d="M4,4.4 L46,10.9 L88,15.9 L130,20.6 L172,18.6 L214,27.9 L256,35.1 L288,41.3 L288,80 L4,80 Z"/>
+                  <path class="trend-line" stroke-width="2" d="M4,4.4 L46,10.9 L88,15.9 L130,20.6 L172,18.6 L214,27.9 L256,35.1 L288,41.3"/>
+                </svg>
+                <p class="text-[10px] text-muted font-medium mt-1">Dashed line marks your 68 kg Goal</p>
+              </div>
+            </details>
+          </div>
+
+          <div class="px-6 mt-5 pb-24">
+            <h2 class="font-display font-bold text-base mb-3">All entries</h2>
+
+            <div class="mb-5">
+              <p class="text-[11px] font-semibold text-muted uppercase tracking-wide mb-1.5">August</p>
+              <div class="divide-y divide-line">
+                <div class="flex items-center gap-3 py-2.5">
+                  <div class="flex-1 min-w-0"><span class="text-sm font-medium">Today, Aug 15</span></div>
+                  <span class="text-sm font-semibold tabular-nums">71.2 kg</span>
+                  <span class="chip chip-met shrink-0"><span class="chip-dot"></span>−0.6</span>
+                </div>
+                <div class="flex items-center gap-3 py-2.5">
+                  <div class="flex-1 min-w-0"><span class="text-sm font-medium">Aug 12</span></div>
+                  <span class="text-sm font-semibold tabular-nums">71.8 kg</span>
+                  <span class="chip chip-met shrink-0"><span class="chip-dot"></span>−0.3</span>
+                </div>
+                <div class="flex items-center gap-3 py-2.5">
+                  <div class="flex-1 min-w-0"><span class="text-sm font-medium">Aug 9</span></div>
+                  <span class="text-sm font-semibold tabular-nums">72.1 kg</span>
+                  <span class="chip chip-watch shrink-0"><span class="chip-dot"></span>+0.1</span>
+                </div>
+                <div class="flex items-center gap-3 py-2.5">
+                  <div class="flex-1 min-w-0"><span class="text-sm font-medium">Aug 5</span></div>
+                  <span class="text-sm font-semibold tabular-nums">72.0 kg</span>
+                  <span class="chip chip-met shrink-0"><span class="chip-dot"></span>−0.4</span>
+                </div>
+                <div class="flex items-center gap-3 py-2.5">
+                  <div class="flex-1 min-w-0"><span class="text-sm font-medium">Aug 2</span></div>
+                  <span class="text-sm font-semibold tabular-nums">72.4 kg</span>
+                  <span class="chip chip-met shrink-0"><span class="chip-dot"></span>−0.2</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p class="text-[11px] font-semibold text-muted uppercase tracking-wide mb-1.5">July</p>
+              <div class="divide-y divide-line">
+                <div class="flex items-center gap-3 py-2.5">
+                  <div class="flex-1 min-w-0"><span class="text-sm font-medium">Jul 29</span></div>
+                  <span class="text-sm font-semibold tabular-nums">72.6 kg</span>
+                  <span class="chip chip-met shrink-0"><span class="chip-dot"></span>−0.3</span>
+                </div>
+                <div class="flex items-center gap-3 py-2.5">
+                  <div class="flex-1 min-w-0"><span class="text-sm font-medium">Jul 22</span></div>
+                  <span class="text-sm font-semibold tabular-nums">72.9 kg</span>
+                  <span class="chip chip-watch shrink-0"><span class="chip-dot"></span>+0.3</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="absolute right-5 bottom-[92px] w-12 h-12 rounded-full grad-ink text-white shadow-soft-lg flex items-center justify-center active:scale-95 transition-transform">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+
+        <nav class="border-t border-line bg-surface px-6 py-3 flex items-center justify-between">
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+            <span class="text-[11px] font-medium">Log</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-brand">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M12 20V4M20 20v-7"/></svg>
+            <span class="text-[11px] font-semibold">Progress</span>
+          </button>
+          <button class="flex flex-col items-center gap-1 text-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h6M14 18h6"/><circle cx="12" cy="6" r="2" fill="#FFF"/><circle cx="16" cy="12" r="2" fill="#FFF"/><circle cx="12" cy="18" r="2" fill="#FFF"/></svg>
+            <span class="text-[11px] font-medium">Settings</span>
+          </button>
+        </nav>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Prototype variant switcher — NOT part of the design, dev-only     -->
+  <!-- ================================================================ -->
+  <div id="switcher" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-ink/95 backdrop-blur text-white rounded-full shadow-soft-lg ring-1 ring-white/10 px-1.5 py-1.5 text-sm select-none">
+    <button id="prevBtn" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors" aria-label="Previous variant">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <span id="variantLabel" class="px-2 font-semibold whitespace-nowrap"></span>
+    <button id="nextBtn" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors" aria-label="Next variant">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+
+  <script>
+    const VARIANTS = [
+      { key: 'a', name: 'Trend first' },
+      { key: 'b', name: 'Goal first' },
+      { key: 'c', name: 'Log first' },
+    ];
+
+    function currentIndex() {
+      const params = new URLSearchParams(location.search);
+      const key = params.get('variant') || 'a';
+      const idx = VARIANTS.findIndex(v => v.key === key);
+      return idx === -1 ? 0 : idx;
+    }
+
+    function playEntrance(el) {
+      el.querySelectorAll('.stagger').forEach((node) => {
+        node.style.animation = 'none';
+        void node.offsetWidth;
+        node.style.animation = '';
+      });
+      el.querySelectorAll('.ring-progress').forEach((circle) => {
+        const target = circle.getAttribute('data-offset');
+        circle.style.transition = 'none';
+        circle.style.strokeDashoffset = '169.6';
+        void circle.getBoundingClientRect();
+        circle.style.transition = '';
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          circle.style.strokeDashoffset = target;
+        }));
+      });
+    }
+
+    function render() {
+      const idx = currentIndex();
+      let activeEl = null;
+      VARIANTS.forEach((v, i) => {
+        const el = document.getElementById('variant-' + v.key);
+        el.style.display = i === idx ? 'flex' : 'none';
+        if (i === idx) activeEl = el;
+      });
+      document.getElementById('variantLabel').textContent =
+        VARIANTS[idx].key.toUpperCase() + ' — ' + VARIANTS[idx].name;
+      if (activeEl) playEntrance(activeEl);
+    }
+
+    function goTo(idx) {
+      const wrapped = (idx + VARIANTS.length) % VARIANTS.length;
+      const params = new URLSearchParams(location.search);
+      params.set('variant', VARIANTS[wrapped].key);
+      history.replaceState(null, '', '?' + params.toString());
+      render();
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', () => goTo(currentIndex() - 1));
+    document.getElementById('nextBtn').addEventListener('click', () => goTo(currentIndex() + 1));
+    document.addEventListener('keydown', (e) => {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      if (e.key === 'ArrowLeft') goTo(currentIndex() - 1);
+      if (e.key === 'ArrowRight') goTo(currentIndex() + 1);
+    });
+
+    render();
+  </script>
+
+</body>
+</html>
