@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Magic-link login — prototype</title>
+<!--
+  LOCKED. Wayfinder issue #15 (child of map #1), resolved: Variant B
+  ("Hero banner + sheet") locked as the screen, chosen over a centered-
+  card and a step-timeline alternate — then refined after review: the
+  original overlapping bottom-sheet (hard shadow seam where the white
+  panel cut across the hero-wash) was dropped in favor of one continuous
+  hero-wash canvas with all content vertically centered, no seam. See
+  issue #15 for the full comparison; exploration on branch
+  prototype/magic-link-login-variants.
+
+  This is a pre-auth screen (no bottom tab bar), covering both states of
+  the flow in one file: (1) enter-email, (2) check-your-email after the
+  link is sent. Click "Send magic link" / "Use a different email" to
+  flip between them.
+
+  Visual identity (color, type, light theme) is locked from issue #9.
+  The Tailwind config + gradient/token CSS block below is copied
+  verbatim from prototype/logging-flow-home/index.html (issue #10) per
+  map #1's Notes.
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#F3F1EA',
+          surface: '#FFFFFF',
+          ink: '#1B1A17',
+          muted: '#79746C',
+          line: '#E9E4D8',
+          brand: '#7FA636',
+          cal: '#E15A2B',
+          protein: '#8B5FBF',
+          carbs: '#C98A16',
+          fat: '#2E9E78',
+          water: '#2E86AB',
+        },
+        fontFamily: {
+          display: ['"Plus Jakarta Sans"', 'sans-serif'],
+          body: ['"Inter"', 'sans-serif'],
+        },
+        borderRadius: {
+          '2xl': '1.1rem',
+          '3xl': '1.75rem',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .shadow-soft { box-shadow: 0 1px 2px rgba(27,26,23,0.03), 0 6px 16px -10px rgba(27,26,23,0.08); }
+  .shadow-soft-lg { box-shadow: 0 1px 3px rgba(27,26,23,0.04), 0 16px 32px -16px rgba(27,26,23,0.14); }
+  .phone { height: 812px; }
+
+  /* whole-canvas backdrop — one quiet warm wash, not a rainbow mesh. Apple's restraint: */
+  /* the color lives in the data, the backdrop just sets a calm stage.                  */
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255,178,120,0.22) 0%, transparent 55%),
+      radial-gradient(circle at 85% 100%, rgba(126,190,150,0.16) 0%, transparent 55%),
+      linear-gradient(165deg, #F8F4EA 0%, #EEE7D6 100%);
+    background-attachment: fixed;
+  }
+
+  /* full-bleed gradient banner behind each screen's header + hero — replaces the blob glow */
+  .hero-wash { background: linear-gradient(165deg, #FFE4C2 0%, #FCF0E0 45%, #FFFFFF 80%); }
+
+  /* gradient fills — vivid, used only where an accent belongs (bars, badges) */
+  .grad-brand   { background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%); }
+
+  /* ---- magic-link-only additions (not part of the locked token set) ---- */
+  .field-input {
+    background: #FFFFFF;
+    border: 1.5px solid #E9E4D8;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .field-input:focus {
+    outline: none;
+    border-color: #7FA636;
+    box-shadow: 0 0 0 4px rgba(127,166,54,0.14);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%);
+    box-shadow: 0 1px 2px rgba(27,26,23,0.06), 0 10px 20px -10px rgba(85,128,22,0.55);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-ghost { border: 1.5px solid #E9E4D8; transition: border-color .15s ease, background-color .15s ease; }
+  .btn-ghost:hover { border-color: #C9C2AE; background: #FBFAF6; }
+
+  /* one staggered rise on entry, replayed on state flip */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .stagger > * { animation: fadeUp .5s cubic-bezier(.16,1,.3,1) both; }
+  .stagger > *:nth-child(1) { animation-delay: .02s; }
+  .stagger > *:nth-child(2) { animation-delay: .08s; }
+  .stagger > *:nth-child(3) { animation-delay: .14s; }
+  .stagger > *:nth-child(4) { animation-delay: .20s; }
+  .stagger > *:nth-child(5) { animation-delay: .26s; }
+  @media (prefers-reduced-motion: reduce) {
+    .stagger > * { animation: none; }
+  }
+
+  /* faint grain — the one texture cue that keeps the warm wash from feeling like flat vector fill */
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+  .stage { position: relative; z-index: 1; }
+</style>
+</head>
+<body class="text-ink">
+
+  <div class="grain"></div>
+  <div class="stage min-h-screen flex items-start justify-center py-10 px-4">
+    <div class="w-full max-w-[390px]">
+
+      <section class="phone hero-wash rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 flex flex-col justify-center px-8 pb-10">
+
+          <!-- state 1: enter email -->
+          <div class="before-sent stagger">
+            <div class="flex justify-center mb-6">
+              <span class="w-20 h-20 rounded-3xl grad-brand shadow-soft-lg text-white flex items-center justify-center">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11Z"/></svg>
+              </span>
+            </div>
+            <h1 class="font-display font-extrabold text-3xl text-center leading-tight">Sign in to<br />Calorie Tracker</h1>
+            <p class="text-sm text-ink/60 text-center mt-3 max-w-[280px] mx-auto">A secure link is all you need — no password to set or forget.</p>
+
+            <div class="mt-8">
+              <label class="text-xs font-semibold text-muted block mb-1.5">Email</label>
+              <input data-email-input type="email" placeholder="you@example.com" class="field-input w-full rounded-2xl px-4 py-3.5 text-sm font-medium" />
+            </div>
+
+            <button data-flow-action="send" class="btn-primary w-full rounded-2xl py-3.5 text-sm font-bold text-white mt-4">Send magic link</button>
+
+            <p class="text-xs text-muted text-center mt-5 flex items-center justify-center gap-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              Invite-only — only invited accounts can sign in
+            </p>
+          </div>
+
+          <!-- state 2: check your email -->
+          <div class="after-sent hidden stagger">
+            <div class="flex justify-center mb-6">
+              <span class="w-20 h-20 rounded-3xl grad-brand shadow-soft-lg text-white flex items-center justify-center">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+              </span>
+            </div>
+            <h1 class="font-display font-extrabold text-3xl text-center leading-tight">Check your<br />email</h1>
+            <p class="text-sm text-ink/60 text-center mt-3 max-w-[280px] mx-auto">We sent a sign-in link to<br /><span data-email-display class="font-semibold text-ink">you@example.com</span></p>
+
+            <div class="mt-8 flex items-center gap-3 rounded-2xl border border-dashed border-line/80 bg-white/70 px-4 py-3.5">
+              <span class="w-8 h-8 rounded-lg bg-bg text-muted flex items-center justify-center shrink-0">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              </span>
+              <p class="text-xs text-muted leading-snug">Tap the link on this device — it expires in a few minutes.</p>
+            </div>
+
+            <button class="btn-primary w-full rounded-2xl py-3.5 text-sm font-bold text-white mt-4">Resend link</button>
+            <button data-flow-action="edit" class="w-full text-center text-sm font-semibold text-muted mt-3">Use a different email</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('[data-flow-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const root = document.querySelector('.stage');
+        const action = btn.dataset.flowAction;
+        if (action === 'send') {
+          const input = root.querySelector('[data-email-input]');
+          const value = (input && input.value.trim()) || 'you@example.com';
+          root.querySelectorAll('[data-email-display]').forEach((n) => { n.textContent = value; });
+          root.querySelectorAll('.before-sent').forEach((n) => n.classList.add('hidden'));
+          root.querySelectorAll('.after-sent').forEach((n) => n.classList.remove('hidden'));
+        } else if (action === 'edit') {
+          root.querySelectorAll('.after-sent').forEach((n) => n.classList.add('hidden'));
+          root.querySelectorAll('.before-sent').forEach((n) => n.classList.remove('hidden'));
+        }
+        root.querySelectorAll('.stagger').forEach((node) => {
+          node.style.animation = 'none';
+          void node.offsetWidth;
+          node.style.animation = '';
+        });
+      });
+    });
+  </script>
+
+</body>
+</html>
