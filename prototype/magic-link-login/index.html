@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Magic-link login — prototype</title>
+<!--
+  PROTOTYPE. Wayfinder issue #15 (child of map #1). Answers: what should
+  the Magic-link login / check-your-email screen look like, applying the
+  visual identity locked in issue #9 and canonically implemented in
+  prototype/logging-flow-home (issue #10)? The Tailwind config +
+  gradient/CSS-token block below is copied VERBATIM from that file per
+  map #1's Notes — do not re-derive.
+
+  This is a pre-auth screen (no bottom tab bar) covering BOTH states of
+  the flow in one artifact: (1) enter-email, (2) check-your-email after
+  the link is sent. Each variant has a "Send magic link" button that
+  flips its own card from state 1 to state 2 in place — click it (or
+  "Use a different email" to flip back) to see both states.
+
+  Three structurally different variants, switchable via ?variant=a|b|c
+  and the floating bar at the bottom (also arrow-key driven):
+    A — Centered card: quiet, form-first, no hero-wash, calm whitespace.
+    B — Hero banner + sheet: hero-wash statement up top, form anchored
+        in an overlapping bottom sheet — mirrors the home screen's
+        hero-first hierarchy.
+    C — Step timeline: the whole flow (email → inbox → tap link) shown
+        as a vertical progress stepper; the active step carries the
+        content, future steps stay dimmed.
+
+  THROWAWAY — capture the winning variant into the real code, drop this
+  switcher/the losing variants onto a throwaway branch per the prototype
+  skill (SKILL.md step 6 / UI.md step 6). Do not ship this file's
+  variant switcher to production.
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#F3F1EA',
+          surface: '#FFFFFF',
+          ink: '#1B1A17',
+          muted: '#79746C',
+          line: '#E9E4D8',
+          brand: '#7FA636',
+          cal: '#E15A2B',
+          protein: '#8B5FBF',
+          carbs: '#C98A16',
+          fat: '#2E9E78',
+          water: '#2E86AB',
+        },
+        fontFamily: {
+          display: ['"Plus Jakarta Sans"', 'sans-serif'],
+          body: ['"Inter"', 'sans-serif'],
+        },
+        borderRadius: {
+          '2xl': '1.1rem',
+          '3xl': '1.75rem',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .shadow-soft { box-shadow: 0 1px 2px rgba(27,26,23,0.03), 0 6px 16px -10px rgba(27,26,23,0.08); }
+  .shadow-soft-lg { box-shadow: 0 1px 3px rgba(27,26,23,0.04), 0 16px 32px -16px rgba(27,26,23,0.14); }
+  .phone { height: 812px; }
+
+  /* whole-canvas backdrop — one quiet warm wash, not a rainbow mesh. Apple's restraint: */
+  /* the color lives in the data, the backdrop just sets a calm stage.                  */
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255,178,120,0.22) 0%, transparent 55%),
+      radial-gradient(circle at 85% 100%, rgba(126,190,150,0.16) 0%, transparent 55%),
+      linear-gradient(165deg, #F8F4EA 0%, #EEE7D6 100%);
+    background-attachment: fixed;
+  }
+
+  /* full-bleed gradient banner behind each screen's header + hero — replaces the blob glow */
+  .hero-wash { background: linear-gradient(165deg, #FFE4C2 0%, #FCF0E0 45%, #FFFFFF 80%); }
+
+  /* gradient fills — vivid, used only where an accent belongs (bars, badges) */
+  .grad-cal     { background: linear-gradient(135deg, #FF7A3D 0%, #DE3F0F 100%); }
+  .grad-protein { background: linear-gradient(135deg, #B283F0 0%, #7331C4 100%); }
+  .grad-carbs   { background: linear-gradient(135deg, #F5B62E 0%, #C67200 100%); }
+  .grad-fat     { background: linear-gradient(135deg, #35DBA0 0%, #0A8B5E 100%); }
+  .grad-water   { background: linear-gradient(135deg, #35B6F0 0%, #0968A0 100%); }
+  .grad-brand   { background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%); }
+  .grad-ink     { background: linear-gradient(160deg, #322F27 0%, #121108 100%); }
+
+  /* subtle sheen for standalone cards/buttons — not used on list rows (see entry-row) */
+  .sheen { background: linear-gradient(165deg, #FFFFFF 0%, #F5F1E6 100%); }
+
+  /* ---- magic-link-only additions (not part of the locked token set) ---- */
+  .field-input {
+    background: #FFFFFF;
+    border: 1.5px solid #E9E4D8;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .field-input:focus {
+    outline: none;
+    border-color: #7FA636;
+    box-shadow: 0 0 0 4px rgba(127,166,54,0.14);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%);
+    box-shadow: 0 1px 2px rgba(27,26,23,0.06), 0 10px 20px -10px rgba(85,128,22,0.55);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-ghost { border: 1.5px solid #E9E4D8; transition: border-color .15s ease, background-color .15s ease; }
+  .btn-ghost:hover { border-color: #C9C2AE; background: #FBFAF6; }
+
+  /* step timeline connectors (variant C) */
+  .step-line { position: absolute; left: 15px; top: 32px; bottom: -8px; width: 2px; background: #E9E4D8; }
+  .step-line.done { background: #A9C97E; }
+  .step-dot { width: 32px; height: 32px; flex-shrink: 0; }
+
+  /* one staggered rise on entry — the only orchestrated motion, replayed on variant switch */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .stagger > * { animation: fadeUp .5s cubic-bezier(.16,1,.3,1) both; }
+  .stagger > *:nth-child(1) { animation-delay: .02s; }
+  .stagger > *:nth-child(2) { animation-delay: .08s; }
+  .stagger > *:nth-child(3) { animation-delay: .14s; }
+  .stagger > *:nth-child(4) { animation-delay: .20s; }
+  .stagger > *:nth-child(5) { animation-delay: .26s; }
+  @media (prefers-reduced-motion: reduce) {
+    .stagger > * { animation: none; }
+  }
+
+  /* faint grain — the one texture cue that keeps the warm wash from feeling like flat vector fill */
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+  .stage { position: relative; z-index: 1; }
+</style>
+</head>
+<body class="text-ink">
+
+  <div class="grain"></div>
+  <div class="stage min-h-screen flex items-start justify-center py-10 px-4">
+    <div class="w-full max-w-[390px]">
+
+      <!-- ============================================================ -->
+      <!-- VARIANT A — Centered card                                     -->
+      <!-- ============================================================ -->
+      <section id="variant-a" class="variant phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 flex flex-col justify-center px-8">
+
+          <!-- state 1: enter email -->
+          <div class="before-sent stagger">
+            <div class="flex justify-center mb-6">
+              <span class="w-14 h-14 rounded-2xl grad-brand shadow-soft text-white flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11Z"/></svg>
+              </span>
+            </div>
+            <h1 class="font-display font-bold text-2xl text-center">Welcome back</h1>
+            <p class="text-sm text-muted text-center mt-2 leading-relaxed">Enter your email and we'll send a secure sign-in link — no password to remember.</p>
+
+            <div class="mt-8">
+              <label class="text-xs font-semibold text-muted block mb-1.5">Email</label>
+              <input data-email-input type="email" placeholder="you@example.com" class="field-input w-full rounded-2xl px-4 py-3.5 text-sm font-medium" />
+            </div>
+
+            <button data-flow-action="send" data-variant="a" class="btn-primary w-full rounded-2xl py-3.5 text-sm font-bold text-white mt-4">Send magic link</button>
+
+            <p class="text-xs text-muted text-center mt-5 flex items-center justify-center gap-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              Invite-only — only invited accounts can sign in
+            </p>
+          </div>
+
+          <!-- state 2: check your email -->
+          <div class="after-sent hidden stagger">
+            <div class="flex justify-center mb-6">
+              <span class="w-14 h-14 rounded-2xl grad-brand shadow-soft text-white flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+              </span>
+            </div>
+            <h1 class="font-display font-bold text-2xl text-center">Check your email</h1>
+            <p class="text-sm text-muted text-center mt-2 leading-relaxed">We sent a sign-in link to<br /><span data-email-display class="font-semibold text-ink">you@example.com</span></p>
+
+            <div class="mt-8 flex items-center gap-3 rounded-2xl border border-dashed border-line px-4 py-3.5">
+              <span class="w-8 h-8 rounded-lg bg-bg text-muted flex items-center justify-center shrink-0">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              </span>
+              <p class="text-xs text-muted leading-snug">Tap the link on this device — it expires in a few minutes.</p>
+            </div>
+
+            <button data-flow-action="edit" data-variant="a" class="btn-ghost w-full rounded-2xl py-3 text-sm font-semibold text-ink mt-4">Use a different email</button>
+            <button class="w-full text-center text-sm font-semibold text-brand mt-3">Resend link</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- VARIANT B — Hero banner + sheet                               -->
+      <!-- ============================================================ -->
+      <section id="variant-b" class="variant phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 flex flex-col">
+
+          <!-- state 1: enter email -->
+          <div class="before-sent flex-1 flex flex-col">
+            <div class="hero-wash flex-1 flex flex-col items-center justify-center px-8 pb-12 stagger">
+              <span class="w-20 h-20 rounded-3xl grad-brand shadow-soft-lg text-white flex items-center justify-center mb-5">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11Z"/></svg>
+              </span>
+              <h1 class="font-display font-extrabold text-3xl text-center leading-tight">Sign in to<br />Calorie Tracker</h1>
+              <p class="text-sm text-ink/60 text-center mt-3 max-w-[260px]">A secure link is all you need — no password to set or forget.</p>
+            </div>
+            <div class="bg-surface rounded-t-3xl -mt-6 px-6 pt-7 pb-8 relative shadow-[0_-8px_24px_-16px_rgba(27,26,23,0.18)]">
+              <label class="text-xs font-semibold text-muted block mb-1.5">Email</label>
+              <input data-email-input type="email" placeholder="you@example.com" class="field-input w-full rounded-2xl px-4 py-3.5 text-sm font-medium" />
+              <button data-flow-action="send" data-variant="b" class="btn-primary w-full rounded-2xl py-3.5 text-sm font-bold text-white mt-4">Send magic link</button>
+              <p class="text-xs text-muted text-center mt-4">Invite-only — only invited accounts can sign in</p>
+            </div>
+          </div>
+
+          <!-- state 2: check your email -->
+          <div class="after-sent hidden flex-1 flex flex-col">
+            <div class="hero-wash flex-1 flex flex-col items-center justify-center px-8 pb-12 stagger">
+              <span class="w-20 h-20 rounded-3xl grad-brand shadow-soft-lg text-white flex items-center justify-center mb-5">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+              </span>
+              <h1 class="font-display font-extrabold text-3xl text-center leading-tight">Check your<br />email</h1>
+              <p class="text-sm text-ink/60 text-center mt-3 max-w-[260px]">Link sent to <span data-email-display class="font-semibold text-ink/80">you@example.com</span></p>
+            </div>
+            <div class="bg-surface rounded-t-3xl -mt-6 px-6 pt-7 pb-8 relative shadow-[0_-8px_24px_-16px_rgba(27,26,23,0.18)]">
+              <div class="flex items-center gap-3 rounded-2xl border border-dashed border-line px-4 py-3.5 mb-4">
+                <span class="w-8 h-8 rounded-lg bg-bg text-muted flex items-center justify-center shrink-0">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                </span>
+                <p class="text-xs text-muted leading-snug">Tap the link on this device — it expires in a few minutes.</p>
+              </div>
+              <button class="btn-primary w-full rounded-2xl py-3.5 text-sm font-bold text-white">Resend link</button>
+              <button data-flow-action="edit" data-variant="b" class="w-full text-center text-sm font-semibold text-muted mt-3">Use a different email</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- VARIANT C — Step timeline                                     -->
+      <!-- ============================================================ -->
+      <section id="variant-c" class="variant phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 overflow-y-auto no-scrollbar">
+          <div class="hero-wash px-6 pt-10 pb-6">
+            <p class="font-display font-bold text-lg">Sign in</p>
+            <p class="text-sm text-ink/60 mt-1">Calorie Tracker is invite-only — three quick steps.</p>
+          </div>
+
+          <div class="px-6 pt-6 pb-8 stagger">
+
+            <!-- step 1 -->
+            <div class="relative pl-11 pb-7">
+              <div class="step-line before-sent"></div>
+              <div class="step-line after-sent hidden done"></div>
+
+              <div class="before-sent">
+                <div class="absolute left-0 top-0 step-dot rounded-full grad-brand text-white flex items-center justify-center font-display font-bold text-sm shadow-soft">1</div>
+                <p class="font-display font-bold text-base pt-1">Enter your email</p>
+                <p class="text-xs text-muted mt-1 mb-3">We'll only use it to send your sign-in link.</p>
+                <input data-email-input type="email" placeholder="you@example.com" class="field-input w-full rounded-2xl px-4 py-3 text-sm font-medium" />
+                <button data-flow-action="send" data-variant="c" class="btn-primary w-full rounded-2xl py-3 text-sm font-bold text-white mt-3">Send magic link</button>
+              </div>
+
+              <div class="after-sent hidden">
+                <div class="absolute left-0 top-0 step-dot rounded-full bg-brand text-white flex items-center justify-center shadow-soft">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <p class="font-display font-bold text-base pt-1">Email sent</p>
+                <p class="text-xs text-muted mt-1">To <span data-email-display class="font-semibold text-ink">you@example.com</span> · <button data-flow-action="edit" data-variant="c" class="text-brand font-semibold underline underline-offset-2">change</button></p>
+              </div>
+            </div>
+
+            <!-- step 2 -->
+            <div class="relative pl-11 pb-7">
+              <div class="step-line"></div>
+              <div class="before-sent step-dot rounded-full bg-bg border-2 border-line text-muted flex items-center justify-center font-display font-bold text-sm absolute left-0 top-0">2</div>
+              <div class="after-sent hidden step-dot rounded-full grad-brand text-white flex items-center justify-center font-display font-bold text-sm absolute left-0 top-0 shadow-soft">2</div>
+
+              <p class="before-sent font-display font-bold text-base pt-1 text-muted">Check your inbox</p>
+              <div class="after-sent hidden">
+                <p class="font-display font-bold text-base pt-1">Check your inbox</p>
+                <div class="flex items-center gap-3 rounded-2xl border border-dashed border-line px-4 py-3 mt-3">
+                  <span class="w-8 h-8 rounded-lg bg-bg text-muted flex items-center justify-center shrink-0">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+                  </span>
+                  <p class="text-xs text-muted leading-snug">Link expires in a few minutes. <button class="text-brand font-semibold">Resend</button></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- step 3 -->
+            <div class="relative pl-11">
+              <div class="step-dot rounded-full bg-bg border-2 border-line text-muted flex items-center justify-center font-display font-bold text-sm absolute left-0 top-0">3</div>
+              <p class="font-display font-bold text-base pt-1 text-muted">Tap the link to continue</p>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Prototype variant switcher — NOT part of the design, dev-only     -->
+  <!-- ================================================================ -->
+  <div id="switcher" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-ink/95 backdrop-blur text-white rounded-full shadow-soft-lg ring-1 ring-white/10 px-1.5 py-1.5 text-sm select-none">
+    <button id="prevBtn" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors" aria-label="Previous variant">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <span id="variantLabel" class="px-2 font-semibold whitespace-nowrap"></span>
+    <button id="nextBtn" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors" aria-label="Next variant">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+
+  <script>
+    const VARIANTS = [
+      { key: 'a', name: 'Centered card' },
+      { key: 'b', name: 'Hero banner + sheet' },
+      { key: 'c', name: 'Step timeline' },
+    ];
+
+    function currentIndex() {
+      const params = new URLSearchParams(location.search);
+      const key = params.get('variant') || 'a';
+      const idx = VARIANTS.findIndex(v => v.key === key);
+      return idx === -1 ? 0 : idx;
+    }
+
+    function playEntrance(el) {
+      el.querySelectorAll('.stagger').forEach((node) => {
+        node.style.animation = 'none';
+        void node.offsetWidth;
+        node.style.animation = '';
+      });
+    }
+
+    function render() {
+      const idx = currentIndex();
+      let activeEl = null;
+      VARIANTS.forEach((v, i) => {
+        const el = document.getElementById('variant-' + v.key);
+        el.style.display = i === idx ? 'flex' : 'none';
+        if (i === idx) activeEl = el;
+      });
+      document.getElementById('variantLabel').textContent =
+        VARIANTS[idx].key.toUpperCase() + ' — ' + VARIANTS[idx].name;
+      if (activeEl) playEntrance(activeEl);
+    }
+
+    function goTo(idx) {
+      const wrapped = (idx + VARIANTS.length) % VARIANTS.length;
+      const params = new URLSearchParams(location.search);
+      params.set('variant', VARIANTS[wrapped].key);
+      history.replaceState(null, '', '?' + params.toString());
+      render();
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', () => goTo(currentIndex() - 1));
+    document.getElementById('nextBtn').addEventListener('click', () => goTo(currentIndex() + 1));
+    document.addEventListener('keydown', (e) => {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      if (e.key === 'ArrowLeft') goTo(currentIndex() - 1);
+      if (e.key === 'ArrowRight') goTo(currentIndex() + 1);
+    });
+
+    // per-variant email → check-your-email state toggle (independent of the a/b/c switcher above)
+    document.querySelectorAll('[data-flow-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const root = btn.closest('.variant');
+        const action = btn.dataset.flowAction;
+        if (action === 'send') {
+          const input = root.querySelector('[data-email-input]');
+          const value = (input && input.value.trim()) || 'you@example.com';
+          root.querySelectorAll('[data-email-display]').forEach((n) => { n.textContent = value; });
+          root.querySelectorAll('.before-sent').forEach((n) => n.classList.add('hidden'));
+          root.querySelectorAll('.after-sent').forEach((n) => n.classList.remove('hidden'));
+        } else if (action === 'edit') {
+          root.querySelectorAll('.after-sent').forEach((n) => n.classList.add('hidden'));
+          root.querySelectorAll('.before-sent').forEach((n) => n.classList.remove('hidden'));
+        }
+        playEntrance(root);
+      });
+    });
+
+    render();
+  </script>
+
+</body>
+</html>
