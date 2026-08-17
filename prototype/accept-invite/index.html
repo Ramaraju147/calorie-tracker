@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Accept invite — prototype</title>
+<!--
+  PROTOTYPE. Wayfinder issue #16 (child of map #1). Answers: what should
+  the Accept-invite screen look like, applying the visual identity locked
+  in issue #9 and canonically implemented in prototype/logging-flow-home
+  (issue #10)? The Tailwind config + gradient/CSS-token block below is
+  copied VERBATIM from that file per map #1's Notes — do not re-derive.
+
+  Per issue #7's resolution: the invitee clicks a Supabase invite link,
+  is authenticated immediately and passwordlessly (same trust model as
+  ordinary magic-link login), then lands here to confirm/edit the
+  display name pre-filled from invite metadata before the invite is
+  marked redeemed and they enter the app. This is a pre-app screen (no
+  bottom tab bar), same footing as prototype/magic-link-login (issue #15)
+  — its closest analog.
+
+  Three structurally different variants, switchable via ?variant=a|b|c
+  and the floating bar at the bottom (also arrow-key driven):
+    A — Centered card: quiet, form-first confirm-details card, no
+        hero-wash — mirrors magic-link's Variant A restraint.
+    B — Hero banner: the invitee's name IS the hero element — an avatar
+        with live initials plus a large inline-editable name, echoing
+        the home screen's oversized-numeral hierarchy but for identity
+        instead of a stat. One continuous hero-wash canvas, vertically
+        centered, no bottom-sheet seam — same refinement as the locked
+        Magic-link login screen (issue #15).
+    C — Step checklist: invite → verify → confirm framed as a vertical
+        progress stepper (invitation verified, confirm your name, start
+        tracking), mirroring magic-link's Variant C stepper pattern.
+
+  THROWAWAY — capture the winning variant into the real code, drop this
+  switcher/the losing variants onto a throwaway branch per the prototype
+  skill (SKILL.md step 6 / UI.md step 6). Do not ship this file's
+  variant switcher to production.
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#F3F1EA',
+          surface: '#FFFFFF',
+          ink: '#1B1A17',
+          muted: '#79746C',
+          line: '#E9E4D8',
+          brand: '#7FA636',
+          cal: '#E15A2B',
+          protein: '#8B5FBF',
+          carbs: '#C98A16',
+          fat: '#2E9E78',
+          water: '#2E86AB',
+        },
+        fontFamily: {
+          display: ['"Plus Jakarta Sans"', 'sans-serif'],
+          body: ['"Inter"', 'sans-serif'],
+        },
+        borderRadius: {
+          '2xl': '1.1rem',
+          '3xl': '1.75rem',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .shadow-soft { box-shadow: 0 1px 2px rgba(27,26,23,0.03), 0 6px 16px -10px rgba(27,26,23,0.08); }
+  .shadow-soft-lg { box-shadow: 0 1px 3px rgba(27,26,23,0.04), 0 16px 32px -16px rgba(27,26,23,0.14); }
+  .phone { height: 812px; }
+
+  /* whole-canvas backdrop — one quiet warm wash, not a rainbow mesh. Apple's restraint: */
+  /* the color lives in the data, the backdrop just sets a calm stage.                  */
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255,178,120,0.22) 0%, transparent 55%),
+      radial-gradient(circle at 85% 100%, rgba(126,190,150,0.16) 0%, transparent 55%),
+      linear-gradient(165deg, #F8F4EA 0%, #EEE7D6 100%);
+    background-attachment: fixed;
+  }
+
+  /* full-bleed gradient banner behind each screen's header + hero — same two-radial-pool technique */
+  /* as the page backdrop below, at the same quiet opacity, laid over the original peach/cream wash. */
+  /* Only the final stop changes: a soft warm cream instead of flat white, so it never dead-ends.    */
+  .hero-wash {
+    background:
+      radial-gradient(circle at 15% -10%, rgba(255,178,120,0.28) 0%, transparent 60%),
+      radial-gradient(circle at 90% 10%, rgba(255,214,150,0.18) 0%, transparent 55%),
+      linear-gradient(165deg, #FFE4C2 0%, #FCF0E0 45%, #F6EFE1 100%);
+  }
+
+
+  /* gradient fills — vivid, used only where an accent belongs (bars, badges) */
+  .grad-cal     { background: linear-gradient(135deg, #FF7A3D 0%, #DE3F0F 100%); }
+  .grad-protein { background: linear-gradient(135deg, #B283F0 0%, #7331C4 100%); }
+  .grad-carbs   { background: linear-gradient(135deg, #F5B62E 0%, #C67200 100%); }
+  .grad-fat     { background: linear-gradient(135deg, #35DBA0 0%, #0A8B5E 100%); }
+  .grad-water   { background: linear-gradient(135deg, #35B6F0 0%, #0968A0 100%); }
+  .grad-brand   { background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%); }
+  .grad-ink     { background: linear-gradient(160deg, #322F27 0%, #121108 100%); }
+
+  /* subtle sheen for standalone cards/buttons — not used on list rows (see entry-row) */
+  .sheen { background: linear-gradient(165deg, #FFFFFF 0%, #F5F1E6 100%); }
+
+  /* ---- accept-invite-only additions (not part of the locked token set) ---- */
+  .field-input {
+    background: #FFFFFF;
+    border: 1.5px solid #E9E4D8;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .field-input:focus {
+    outline: none;
+    border-color: #7FA636;
+    box-shadow: 0 0 0 4px rgba(127,166,54,0.14);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #A9DE5B 0%, #558016 100%);
+    box-shadow: 0 1px 2px rgba(27,26,23,0.06), 0 10px 20px -10px rgba(85,128,22,0.55);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-ghost { border: 1.5px solid #E9E4D8; transition: border-color .15s ease, background-color .15s ease; }
+  .btn-ghost:hover { border-color: #C9C2AE; background: #FBFAF6; }
+
+  /* inline-editable "name is the hero" text field (variant B) */
+  .name-hero {
+    background: transparent;
+    border: none;
+    outline: none;
+    width: 100%;
+    text-align: center;
+    border-bottom: 2px dashed transparent;
+    transition: border-color .15s ease;
+  }
+  .name-hero:focus { border-color: rgba(27,26,23,0.18); }
+
+  /* step timeline connectors (variant C) */
+  .step-line { position: absolute; left: 15px; top: 32px; bottom: -8px; width: 2px; background: #E9E4D8; }
+  .step-line.done { background: #A9C97E; }
+  .step-dot { width: 32px; height: 32px; flex-shrink: 0; }
+
+  /* one staggered rise on entry — the only orchestrated motion, replayed on variant switch */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .stagger > * { animation: fadeUp .5s cubic-bezier(.16,1,.3,1) both; }
+  .stagger > *:nth-child(1) { animation-delay: .02s; }
+  .stagger > *:nth-child(2) { animation-delay: .08s; }
+  .stagger > *:nth-child(3) { animation-delay: .14s; }
+  .stagger > *:nth-child(4) { animation-delay: .20s; }
+  .stagger > *:nth-child(5) { animation-delay: .26s; }
+  @media (prefers-reduced-motion: reduce) {
+    .stagger > * { animation: none; }
+  }
+
+  /* faint grain — the one texture cue that keeps the warm wash from feeling like flat vector fill */
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+  .stage { position: relative; z-index: 1; }
+</style>
+</head>
+<body class="text-ink">
+
+  <div class="grain"></div>
+  <div class="stage min-h-screen flex items-start justify-center py-10 px-4">
+    <div class="w-full max-w-[390px]">
+
+      <!-- ============================================================ -->
+      <!-- VARIANT A — Centered card                                     -->
+      <!-- ============================================================ -->
+      <section id="variant-a" class="variant phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 flex flex-col justify-center px-8 stagger">
+          <div class="flex justify-center mb-6">
+            <span class="w-14 h-14 rounded-2xl grad-brand shadow-soft text-white flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </span>
+          </div>
+          <h1 class="font-display font-bold text-2xl text-center">You're invited</h1>
+          <p class="text-sm text-muted text-center mt-2 leading-relaxed">You're in — just confirm your name to finish setting up your account.</p>
+
+          <div class="mt-8">
+            <label class="text-xs font-semibold text-muted block mb-1.5">Your name</label>
+            <input data-name-input="a" type="text" value="Alex Rivera" class="field-input w-full rounded-2xl px-4 py-3.5 text-sm font-medium" />
+          </div>
+
+          <div class="mt-3">
+            <label class="text-xs font-semibold text-muted block mb-1.5">Email</label>
+            <div class="w-full rounded-2xl px-4 py-3.5 bg-bg flex items-center justify-between">
+              <span class="text-sm font-medium text-ink/70">alex@example.com</span>
+              <span class="flex items-center gap-1 text-xs font-semibold text-brand shrink-0">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Verified
+              </span>
+            </div>
+          </div>
+
+          <button class="btn-primary w-full rounded-2xl py-3.5 text-sm font-bold text-white mt-6">Continue to Calorie Tracker</button>
+
+          <p class="text-xs text-muted text-center mt-5 flex items-center justify-center gap-1.5">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            This invite is private to your account
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- VARIANT B — Hero banner (name is the hero)                    -->
+      <!-- ============================================================ -->
+      <section id="variant-b" class="variant phone hero-wash rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 flex flex-col justify-center px-8 pb-10 stagger">
+          <div class="flex justify-center mb-5">
+            <span data-avatar="b" class="w-20 h-20 rounded-full grad-brand shadow-soft-lg text-white flex items-center justify-center font-display font-extrabold text-2xl">AR</span>
+          </div>
+          <p class="text-sm text-ink/60 font-medium text-center mb-1">Welcome to Calorie Tracker</p>
+          <input data-name-input="b" type="text" value="Alex Rivera" class="name-hero font-display font-extrabold text-[34px] leading-tight text-ink text-center" />
+          <p class="text-xs text-ink/50 text-center mt-2 mb-8">Tap your name to edit it</p>
+
+          <div class="w-full rounded-2xl px-4 py-3.5 bg-white/70 border border-white/90 backdrop-blur-sm flex items-center justify-between">
+            <span class="text-sm font-medium text-ink/70">alex@example.com</span>
+            <span class="flex items-center gap-1 text-xs font-semibold text-brand shrink-0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              Verified
+            </span>
+          </div>
+          <button class="btn-primary w-full rounded-2xl py-3.5 text-sm font-bold text-white mt-4">Enter Calorie Tracker</button>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- VARIANT C — Step checklist                                    -->
+      <!-- ============================================================ -->
+      <section id="variant-c" class="variant phone bg-surface rounded-3xl border border-line shadow-soft-lg overflow-hidden flex flex-col relative">
+        <div class="flex-1 overflow-y-auto no-scrollbar">
+          <div class="hero-wash px-6 pt-10 pb-6">
+            <p class="font-display font-bold text-lg">Almost there</p>
+            <p class="text-sm text-ink/60 mt-1">Two quick steps to start tracking.</p>
+          </div>
+
+          <div class="px-6 pt-6 pb-8 stagger">
+
+            <!-- step 1: invitation verified (done) -->
+            <div class="relative pl-11 pb-7">
+              <div class="step-line done"></div>
+              <div class="absolute left-0 top-0 step-dot rounded-full bg-brand text-white flex items-center justify-center shadow-soft">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </div>
+              <p class="font-display font-bold text-base pt-1">Invitation verified</p>
+              <p class="text-xs text-muted mt-1">Signed in as <span class="font-semibold text-ink">alex@example.com</span></p>
+            </div>
+
+            <!-- step 2: confirm your name (active) -->
+            <div class="relative pl-11 pb-7">
+              <div class="step-line"></div>
+              <div class="absolute left-0 top-0 step-dot rounded-full grad-brand text-white flex items-center justify-center font-display font-bold text-sm shadow-soft">2</div>
+              <p class="font-display font-bold text-base pt-1">Confirm your name</p>
+              <p class="text-xs text-muted mt-1 mb-3">This is how you'll appear in your account.</p>
+              <input data-name-input="c" type="text" value="Alex Rivera" class="field-input w-full rounded-2xl px-4 py-3 text-sm font-medium" />
+            </div>
+
+            <!-- step 3: start tracking (pending) -->
+            <div class="relative pl-11">
+              <div class="step-dot rounded-full bg-bg border-2 border-line text-muted flex items-center justify-center font-display font-bold text-sm absolute left-0 top-0">3</div>
+              <p class="font-display font-bold text-base pt-1 text-muted mb-3">Start tracking</p>
+              <button class="btn-primary w-full rounded-2xl py-3 text-sm font-bold text-white">Enter Calorie Tracker</button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Prototype variant switcher — NOT part of the design, dev-only     -->
+  <!-- ================================================================ -->
+  <div id="switcher" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-ink/95 backdrop-blur text-white rounded-full shadow-soft-lg ring-1 ring-white/10 px-1.5 py-1.5 text-sm select-none">
+    <button id="prevBtn" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors" aria-label="Previous variant">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <span id="variantLabel" class="px-2 font-semibold whitespace-nowrap"></span>
+    <button id="nextBtn" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors" aria-label="Next variant">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+
+  <script>
+    const VARIANTS = [
+      { key: 'a', name: 'Centered card' },
+      { key: 'b', name: 'Hero banner' },
+      { key: 'c', name: 'Step checklist' },
+    ];
+
+    function currentIndex() {
+      const params = new URLSearchParams(location.search);
+      const key = params.get('variant') || 'a';
+      const idx = VARIANTS.findIndex(v => v.key === key);
+      return idx === -1 ? 0 : idx;
+    }
+
+    function playEntrance(el) {
+      el.querySelectorAll('.stagger').forEach((node) => {
+        node.style.animation = 'none';
+        void node.offsetWidth;
+        node.style.animation = '';
+      });
+    }
+
+    function render() {
+      const idx = currentIndex();
+      let activeEl = null;
+      VARIANTS.forEach((v, i) => {
+        const el = document.getElementById('variant-' + v.key);
+        el.style.display = i === idx ? 'flex' : 'none';
+        if (i === idx) activeEl = el;
+      });
+      document.getElementById('variantLabel').textContent =
+        VARIANTS[idx].key.toUpperCase() + ' — ' + VARIANTS[idx].name;
+      if (activeEl) playEntrance(activeEl);
+    }
+
+    function goTo(idx) {
+      const wrapped = (idx + VARIANTS.length) % VARIANTS.length;
+      const params = new URLSearchParams(location.search);
+      params.set('variant', VARIANTS[wrapped].key);
+      history.replaceState(null, '', '?' + params.toString());
+      render();
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', () => goTo(currentIndex() - 1));
+    document.getElementById('nextBtn').addEventListener('click', () => goTo(currentIndex() + 1));
+    document.addEventListener('keydown', (e) => {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      if (e.key === 'ArrowLeft') goTo(currentIndex() - 1);
+      if (e.key === 'ArrowRight') goTo(currentIndex() + 1);
+    });
+
+    // variant B: avatar initials track the editable hero name live
+    function initialsFor(name) {
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return '';
+      return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+    }
+    const nameInputB = document.querySelector('[data-name-input="b"]');
+    const avatarB = document.querySelector('[data-avatar="b"]');
+    if (nameInputB && avatarB) {
+      nameInputB.addEventListener('input', () => {
+        avatarB.textContent = initialsFor(nameInputB.value) || '?';
+      });
+    }
+
+    render();
+  </script>
+
+</body>
+</html>
